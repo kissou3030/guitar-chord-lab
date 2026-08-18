@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guitar Chord Lab — 双方向コード判定 / ボイシング生成</title>
+<style>
+:root{
+  --bg:#0f1319; --panel:#171d26; --panel2:#1e2632; --line:#2b3542;
+  --tx:#e6ecf3; --tx2:#93a1b3; --tx3:#64748b;
+  --accent:#4f8ef7;
+  --c-root:#e5484d; --c-third:#4b8ef8; --c-sus:#7aa7fb; --c-fifth:#8b93a1;
+  --c-seventh:#22a06b; --c-tension:#f59e0b; --c-none:#5b6675;
+  --wood:#1a222d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
+  font-size:14px; line-height:1.5; -webkit-text-size-adjust:100%;
+  padding:0 0 40px;
+}
+.wrap{max-width:1100px;margin:0 auto;padding:0 12px}
+h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.02em}
+h1 small{font-weight:400;color:var(--tx3);font-size:11px;margin-left:8px}
+
+.bar{
+  position:sticky;top:0;z-index:30;background:rgba(15,19,25,.94);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
+  padding:8px 0 9px; margin-bottom:12px;
+}
+.bar .wrap{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ctl{display:flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--line);
+     border-radius:8px;padding:4px 7px;min-height:34px}
+.ctl label{font-size:11px;color:var(--tx3);white-space:nowrap}
+select,input[type=text]{
+  background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;
+  padding:5px 7px;font:inherit;font-size:13px;outline:none;
+}
+select:focus,input:focus{border-color:var(--accent)}
+button{
+  background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;
+  padding:5px 9px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+button:hover{border-color:#3d4a5c}
+button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+button.play{background:#1f6f4a;border-color:#2a8f60;color:#fff;font-weight:600}
+.seg{display:flex;gap:0}
+.seg button{border-radius:0;margin-left:-1px}
+.seg button:first-child{border-radius:6px 0 0 6px;margin-left:0}
+.seg button:last-child{border-radius:0 6px 6px 0}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.ptitle{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.09em;margin-bottom:9px;
+        display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+#boardBox{overflow:auto;-webkit-overflow-scrolling:touch;background:var(--wood);
+          border:1px solid var(--line);border-radius:12px;padding:4px}
+#boardBox.vert{max-height:64vh}
+#board{display:block;touch-action:manipulation}
+#board text{user-select:none;-webkit-user-select:none}
+.hit{fill:transparent;cursor:pointer}
+.hit:hover{fill:rgba(255,255,255,.055)}
+
+#results{display:flex;flex-direction:column;gap:6px}
+.res{display:flex;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);
+     border-radius:9px;padding:8px 10px;cursor:pointer;text-align:left;width:100%;font:inherit;color:inherit}
+.res:hover{border-color:var(--accent)}
+.res.top{border-color:#3a4a63;background:#1d2735}
+.res .lab{font-weight:650;font-size:17px;min-width:104px;letter-spacing:.01em}
+.res.top .lab{font-size:23px}
+.res .shape{display:block;font-size:10px;color:var(--tx3);font-weight:400;letter-spacing:0}
+.res .why{font-size:11.5px;color:var(--tx2);flex:1}
+.res .sc{font-size:10px;color:var(--tx3);font-variant-numeric:tabular-nums}
+.conf{height:3px;background:var(--line);border-radius:2px;overflow:hidden;width:52px;flex-shrink:0}
+.conf i{display:block;height:100%;background:var(--accent)}
+.empty{color:var(--tx3);font-size:12.5px;padding:6px 2px}
+
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--tx2);margin-top:10px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;vertical-align:-1px}
+
+.searchRow{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.sugWrap{position:relative;flex:1;min-width:180px}
+#q{width:100%;font-size:16px;padding:9px 11px;font-weight:600}
+#sug{position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--panel2);
+     border:1px solid var(--line);border-radius:8px;margin-top:4px;overflow:hidden;box-shadow:0 8px 22px rgba(0,0,0,.45)}
+#sug button{display:block;width:100%;border:0;border-radius:0;text-align:left;padding:8px 11px;background:transparent;font-size:14px}
+#sug button:hover,#sug button.sel{background:var(--accent);color:#fff}
+.err{color:#ff8b8b;font-size:12px;padding:4px 2px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.filters .ctl{min-height:30px;padding:3px 7px}
+input[type=range]{accent-color:var(--accent);width:96px}
+.chk{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--tx2)}
+
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px;margin-top:11px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 5px 5px;
+      cursor:pointer;text-align:center;position:relative}
+.card:hover{border-color:var(--accent)}
+.card.active{border-color:var(--accent);background:#1d2b42;box-shadow:0 0 0 1px var(--accent)}
+.card svg{display:block;margin:0 auto}
+.badge{position:absolute;top:5px;right:6px;font-size:9px;color:var(--tx3);font-variant-numeric:tabular-nums}
+.cardft{font-size:9.5px;color:var(--tx3);margin-top:3px;font-variant-numeric:tabular-nums}
+.tunerow{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.tuner{display:flex;align-items:center;gap:3px;background:var(--panel2);border:1px solid var(--line);
+       border-radius:7px;padding:3px 5px}
+.tuner b{font-size:11px;min-width:26px;text-align:center;font-weight:600}
+.tuner button{padding:1px 6px;font-size:13px;line-height:1.35}
+.tuner span{font-size:9px;color:var(--tx3)}
+@media (max-width:639px){
+  .wrap{padding:0 8px}
+  .res .lab{min-width:86px;font-size:16px}
+  .res.top .lab{font-size:21px}
+  #cards{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:7px}
+  .bar .wrap{gap:6px}
+  .ctl{padding:3px 6px}
+}
+</style>
+</head>
+<body>
+
+<noscript>
+  <div style="margin:12px;padding:14px 16px;border:1px solid #6b3a3a;background:#2a1a1a;
+              color:#ffd7d7;border-radius:10px;font-size:14px;line-height:1.7">
+    <b>JavaScript が無効なため表示できません。</b><br>
+    メールやLINEの「プレビュー」で開くと、この状態になります。<br>
+    いったんファイルを保存してから、<b>Safari や Chrome</b> で開いてください。
+  </div>
+</noscript>
+
+<div class="bar">
+  <div class="wrap">
+    <h1>Guitar Chord Lab <small>指板 ⇄ コード名</small></h1>
+    <div class="ctl">
+      <label for="tuneSel">Tuning</label>
+      <select id="tuneSel"></select>
+    </div>
+    <div class="ctl">
+      <label for="capoSel">Capo</label>
+      <select id="capoSel"></select>
+    </div>
+    <div class="ctl seg" style="padding:0;border:0;background:none">
+      <button id="accSharp" class="on">&#9839;</button><button id="accFlat">&#9837;</button>
+    </div>
+    <button id="namesBtn" class="on">音名</button>
+    <div class="ctl seg" style="padding:0;border:0;background:none">
+      <button id="strumBtn" class="on">Strum</button><button id="blockBtn">Block</button>
+    </div>
+    <button class="play" id="playBtn">&#9654; 再生</button>
+    <button id="clearBtn">クリア</button>
+    <button id="tuneToggle">弦別調整</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div id="tunePanel" class="panel" style="display:none">
+    <div class="ptitle">各弦を半音単位で調整（6弦 → 1弦）</div>
+    <div class="tunerow" id="tuneRow"></div>
+  </div>
+
+  <div id="boardBox"><svg id="board"></svg></div>
+
+  <div class="panel" style="margin-top:12px">
+    <div class="ptitle">判定結果 <span id="noteReadout" style="color:var(--tx2);text-transform:none;letter-spacing:0"></span></div>
+    <div id="results"></div>
+    <div class="legend">
+      <span><i style="background:var(--c-root)"></i>Root</span>
+      <span><i style="background:var(--c-third)"></i>3rd</span>
+      <span><i style="background:var(--c-sus)"></i>sus</span>
+      <span><i style="background:var(--c-fifth)"></i>5th</span>
+      <span><i style="background:var(--c-seventh)"></i>6th/7th</span>
+      <span><i style="background:var(--c-tension)"></i>tension</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">押さえ方を探す</div>
+    <div class="searchRow">
+      <div class="sugWrap">
+        <input type="text" id="q" placeholder="コード名を入力 (例: Cm7, F#7#9, Bbmaj9)" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div id="sug" style="display:none"></div>
+      </div>
+    </div>
+    <div id="qerr" class="err" style="display:none"></div>
+    <div class="filters">
+      <div class="ctl"><label>ポジション</label>
+        <input type="range" id="posMin" min="0" max="15" value="0">
+        <b id="posLab" style="font-size:11px;font-variant-numeric:tabular-nums">0–12F</b>
+        <input type="range" id="posMax" min="0" max="15" value="12">
+      </div>
+      <div class="ctl"><label>最低弦数</label>
+        <select id="minStr"><option value="3">3+</option><option value="4" selected>4+</option><option value="5">5+</option><option value="6">6</option></select>
+      </div>
+      <div class="ctl"><label>並び</label>
+        <select id="sortBy"><option value="diff">押さえやすさ順</option><option value="pos">ポジション順</option></select>
+      </div>
+      <label class="chk"><input type="checkbox" id="rootBass"> ルートが最低音のみ</label>
+    </div>
+    <div id="cards"></div>
+    <div id="cardsMsg" class="empty"></div>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   Core music theory.
+   This block was verified against every test case in section 11
+   BEFORE any UI existed. Do not edit the scoring weights without
+   re-running those cases.
+   ============================================================ */
+/* ===== core music theory ===== */
+const NAMES_SHARP = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const NAMES_FLAT  = ["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+
+const CHORD_TYPES = [
+  { name: "5",       intervals: [0,7],            omitOk: [] },
+  { name: "",        intervals: [0,4,7],          omitOk: [7] },
+  { name: "m",       intervals: [0,3,7],          omitOk: [7] },
+  { name: "dim",     intervals: [0,3,6],          omitOk: [] },
+  { name: "aug",     intervals: [0,4,8],          omitOk: [] },
+  { name: "sus2",    intervals: [0,2,7],          omitOk: [] },
+  { name: "sus4",    intervals: [0,5,7],          omitOk: [] },
+  { name: "6",       intervals: [0,4,7,9],        omitOk: [7] },
+  { name: "m6",      intervals: [0,3,7,9],        omitOk: [7] },
+  { name: "7",       intervals: [0,4,7,10],       omitOk: [7] },
+  { name: "maj7",    intervals: [0,4,7,11],       omitOk: [7] },
+  { name: "m7",      intervals: [0,3,7,10],       omitOk: [7] },
+  { name: "mMaj7",   intervals: [0,3,7,11],       omitOk: [7] },
+  { name: "m7b5",    intervals: [0,3,6,10],       omitOk: [] },
+  { name: "dim7",    intervals: [0,3,6,9],        omitOk: [] },
+  { name: "7b5",     intervals: [0,4,6,10],       omitOk: [] },
+  { name: "7#5",     intervals: [0,4,8,10],       omitOk: [] },
+  { name: "7sus4",   intervals: [0,5,7,10],       omitOk: [7] },
+  { name: "add9",    intervals: [0,2,4,7],        omitOk: [7] },
+  { name: "madd9",   intervals: [0,2,3,7],        omitOk: [7] },
+  { name: "6/9",     intervals: [0,2,4,7,9],      omitOk: [7] },
+  { name: "9",       intervals: [0,2,4,7,10],     omitOk: [7] },
+  { name: "maj9",    intervals: [0,2,4,7,11],     omitOk: [7] },
+  { name: "m9",      intervals: [0,2,3,7,10],     omitOk: [7] },
+  { name: "11",      intervals: [0,2,5,7,10],     omitOk: [7,2] },
+  { name: "m11",     intervals: [0,2,3,5,7,10],   omitOk: [7,2] },
+  { name: "13",      intervals: [0,2,4,7,9,10],   omitOk: [7,2] },
+  { name: "maj13",   intervals: [0,2,4,7,9,11],   omitOk: [7,2] },
+  { name: "m13",     intervals: [0,2,3,7,9,10],   omitOk: [7,2] },
+  { name: "7b9",     intervals: [0,1,4,7,10],     omitOk: [7] },
+  { name: "7#9",     intervals: [0,3,4,7,10],     omitOk: [7] },
+  { name: "7#11",    intervals: [0,4,6,7,10],     omitOk: [7] },
+  { name: "7b13",    intervals: [0,4,7,8,10],     omitOk: [7] },
+  { name: "maj7#11", intervals: [0,4,6,7,11],     omitOk: [7] },
+];
+
+const COMMON_BONUS = (n) =>
+  ["", "m", "7", "m7", "maj7"].includes(n) ? 10 :
+  ["5","sus2","sus4","6","m6","dim","aug","m7b5","dim7","add9","7sus4"].includes(n) ? 6 :
+  ["9","m9","maj9","mMaj7","6/9"].includes(n) ? 3 : 0;
+
+function thirdOf(t) {
+  return t.intervals.includes(4) ? 4 : t.intervals.includes(3) ? 3 : null;
+}
+
+function identifyChord(midiNotes, useFlat = false) {
+  if (midiNotes.length < 2) return [];
+  const NAMES = useFlat ? NAMES_FLAT : NAMES_SHARP;
+  const bassPc = Math.min(...midiNotes) % 12;
+  const pcs = [...new Set(midiNotes.map(n => n % 12))];
+  const results = [];
+
+  for (let root = 0; root < 12; root++) {
+    for (const t of CHORD_TYPES) {
+      const tones   = [...new Set(t.intervals.map(x => (root + x) % 12))];
+      const matched = pcs.filter(p => tones.includes(p));
+      const missing = tones.filter(p => !pcs.includes(p));
+      const extra   = pcs.filter(p => !tones.includes(p));
+      const third   = thirdOf(t);
+
+      let score = 0, reject = false;
+      score += (bassPc === root) ? 30 : -15;
+      score -= 40 * extra.length;
+
+      for (const m of missing) {
+        const deg = ((m - root) % 12 + 12) % 12;
+        if (deg === 0)                   score -= 25;
+        else if (deg === third)          score -= 20;
+        else if (t.omitOk.includes(deg)) score -= (deg === 2 ? 5 : 3);
+        else { reject = true; break; }
+      }
+      if (reject) continue;
+
+      score += 5 * matched.length;
+      score += COMMON_BONUS(t.name);
+      if (score <= 0) continue;
+
+      let label = NAMES[root] + t.name;
+      if (bassPc !== root) label += "/" + NAMES[bassPc];
+      results.push({ score, root, type: t, label, matched, missing, extra, bassPc });
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, 10);
+}
+
+/* reason text (5-3), first match wins */
+function reasonFor(c, useFlat) {
+  const NAMES = useFlat ? NAMES_FLAT : NAMES_SHARP;
+  const degs = c.missing.map(m => ((m - c.root) % 12 + 12) % 12);
+  const third = thirdOf(c.type);
+  // not in the 5-3 table, but must outrank it: without this an unexplained
+  // note reads as "完全一致" (e.g. C5 while an E is still ringing).
+  if (c.extra.length) return c.extra.map(p => NAMES[p]).join("・") + " が構成音外";
+  if (degs.length === 0 && c.bassPc === c.root) return "完全一致";
+  if (degs.length && degs.every(d => d === 6 || d === 7 || d === 8)) return "5thを省略";
+  if (degs.includes(2)) return "9thを省略";
+  if (degs.includes(0)) return "ルートが鳴っていない";
+  if (third !== null && degs.includes(third)) return "3rdが鳴っていない（性格が未確定）";
+  if (c.bassPc !== c.root) return "ベースが" + NAMES[c.bassPc] + "のため減点（転回形）";
+  return "構成音が一致";
+}
+
+/* degree role -> colour key (4-1). needs the identified type. */
+function degreeRole(deg, type) {
+  const iv = type ? type.intervals : null;
+  if (deg === 0) return "root";
+  if (deg === 3 || deg === 4) return "third";
+  if (deg === 2) {
+    if (iv && iv.includes(2) && !iv.includes(3) && !iv.includes(4)) return "sus";
+    return "tension";
+  }
+  if (deg === 5) {
+    if (iv && iv.includes(5) && !iv.includes(3) && !iv.includes(4)) return "sus";
+    return "tension";
+  }
+  if (deg === 6 || deg === 7 || deg === 8) return "fifth";
+  if (deg === 9 || deg === 10 || deg === 11) return "seventh";
+  if (deg === 1) return "tension";
+  return "tension";
+}
+
+/* ===== 6. voicing generation ===== */
+const MAX_FRET = 15;
+
+/* 6-3 playability. returns null if unplayable. */
+function playability(fing) {
+  const fretted = [];
+  for (let i = 0; i < 6; i++) if (fing[i] !== null && fing[i] > 0) fretted.push({ s: i, f: fing[i] });
+  const usesOpen = fing.some(f => f === 0);
+
+  let span = 0, minF = 0, barre = false, fingers = 0, barreRange = null;
+  if (fretted.length) {
+    const fs = fretted.map(x => x.f);
+    minF = Math.min(...fs);
+    span = Math.max(...fs) - minF;
+    if (span > 3) return null;                       // fret span limit
+    const atMin = fretted.filter(x => x.f === minF);
+    if (atMin.length >= 2) {
+      barre = true;
+      const lo = Math.min(...atMin.map(x => x.s)), hi = Math.max(...atMin.map(x => x.s));
+      barreRange = [lo, hi];
+      // an open string inside the barre span is physically impossible
+      for (let s = lo; s <= hi; s++) if (fing[s] === 0) return null;
+      fingers = 1 + fretted.filter(x => x.f > minF).length;
+    } else {
+      fingers = fretted.length;
+    }
+    if (fingers > 4) return null;                    // finger count limit
+  }
+
+  const sounding = [];
+  for (let i = 0; i < 6; i++) if (fing[i] !== null) sounding.push(i);
+  let internalMute = 0;
+  if (sounding.length) {
+    for (let s = Math.min(...sounding); s <= Math.max(...sounding); s++)
+      if (fing[s] === null) internalMute++;
+  }
+
+  const diff = span * 1 + fingers * 1 + (barre ? 2 : 0) + internalMute * 2
+             + (minF >= 8 ? 1 : 0) + (usesOpen ? -1 : 0);
+  return { diff, span, fingers, barre, barreRange, internalMute, minFret: minF, nSounding: sounding.length };
+}
+
+/* 6-2 chord membership, same omit rules as 5-2 */
+function voicingNotes(fing, openMidi, rootPc, type) {
+  const notes = [];
+  for (let i = 0; i < 6; i++) if (fing[i] !== null) notes.push(openMidi[i] + fing[i]);
+  if (notes.length < (type.name === "5" ? 2 : 3)) return null;
+  const pcs = new Set(notes.map(n => n % 12));
+  const tones = new Set(type.intervals.map(x => (rootPc + x) % 12));
+  for (const p of pcs) if (!tones.has(p)) return null;                 // no unexplained note
+  for (const iv of type.intervals) {                                   // required tones present
+    if (!pcs.has((rootPc + iv) % 12) && !type.omitOk.includes(iv)) return null;
+  }
+  return notes;
+}
+
+/* returns [{fing, notes, play, bassPc, minFret}] with fret numbers RELATIVE to capo */
+function generateVoicings(rootPc, type, openMidi, maxPos = MAX_FRET) {
+  const seen = new Set(), out = [];
+  for (let P = 0; P <= maxPos; P++) {
+    const cands = [];
+    for (let s = 0; s < 6; s++) {
+      const set = new Set([null, 0]);
+      for (let d = 0; d < 4; d++) { const f = P + d; if (f > 0 && f <= MAX_FRET) set.add(f); }
+      cands.push([...set]);
+    }
+    const f = [0,0,0,0,0,0];
+    for (const a of cands[0]) { f[0]=a;
+    for (const b of cands[1]) { f[1]=b;
+    for (const c of cands[2]) { f[2]=c;
+    for (const d of cands[3]) { f[3]=d;
+    for (const e of cands[4]) { f[4]=e;
+    for (const g of cands[5]) { f[5]=g;
+      const key = f.map(x => x === null ? "x" : x).join(",");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const notes = voicingNotes(f, openMidi, rootPc, type);
+      if (!notes) continue;
+      const play = playability(f);
+      if (!play) continue;
+      out.push({ fing: f.slice(), notes, play, bassPc: Math.min(...notes) % 12, minFret: play.minFret });
+    }}}}}}
+  }
+  return out;
+}
+
+/* ===== 7-4. chord name parser ===== */
+const ALIASES = {
+  "5":       ["5","no3","power"],
+  "":        ["","M","maj","major"],
+  "m":       ["m","min","-","minor"],
+  "dim":     ["dim","o","°"],
+  "aug":     ["aug","+","+5"],
+  "sus2":    ["sus2","2"],
+  "sus4":    ["sus4","sus","4"],
+  "6":       ["6","M6","maj6"],
+  "m6":      ["m6","min6","-6"],
+  "7":       ["7","dom7","dom"],
+  "maj7":    ["maj7","M7","Δ7","Δ","major7","ma7","j7"],
+  "m7":      ["m7","min7","-7"],
+  "mMaj7":   ["mmaj7","mM7","mΔ7","minmaj7","-Δ7"],
+  "m7b5":    ["m7b5","m7-5","ø","halfdim","min7b5"],
+  "dim7":    ["dim7","o7","°7"],
+  "7b5":     ["7b5","7-5"],
+  "7#5":     ["7#5","7+5","aug7","7+"],
+  "7sus4":   ["7sus4","7sus"],
+  "add9":    ["add9","add2"],
+  "madd9":   ["madd9","madd2","-add9"],
+  "6/9":     ["6/9","69","6add9"],
+  "9":       ["9","dom9"],
+  "maj9":    ["maj9","M9","Δ9","major9","ma9"],
+  "m9":      ["m9","min9","-9"],
+  "11":      ["11"],
+  "m11":     ["m11","min11","-11"],
+  "13":      ["13"],
+  "maj13":   ["maj13","M13","Δ13"],
+  "m13":     ["m13","min13","-13"],
+  "7b9":     ["7b9","7-9"],
+  "7#9":     ["7#9","7+9"],
+  "7#11":    ["7#11","7+11"],
+  "7b13":    ["7b13","7-13"],
+  "maj7#11": ["maj7#11","M7#11","Δ7#11"],
+};
+const EXACT = {}, LOWER = {};
+for (const [tn, list] of Object.entries(ALIASES)) {
+  for (const a of list) {
+    if (!(a in EXACT)) EXACT[a] = tn;
+    // only unambiguously-lowercase spellings feed the case-insensitive pass,
+    // so "M7"(maj7) vs "m7"(min7) stays decidable
+    if (a === a.toLowerCase() && !(a.toLowerCase() in LOWER)) LOWER[a.toLowerCase()] = tn;
+  }
+}
+const PC_OF = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+
+function noteToPc(s) {
+  const m = /^([A-Ga-g])(#|b)?$/.exec(s);
+  if (!m) return null;
+  let pc = PC_OF[m[1].toUpperCase()];
+  if (m[2] === "#") pc = (pc + 1) % 12;
+  if (m[2] === "b") pc = (pc + 11) % 12;
+  return pc;
+}
+
+/* -> {rootPc, type, bassPc|null} or {error} */
+function parseChord(input) {
+  let s = (input || "").trim()
+    .replace(/[♯]/g, "#").replace(/[♭]/g, "b")
+    .replace(/[∆△]/g, "Δ").replace(/[()\s]/g, "");
+  if (!s) return { error: "コード名を入力してください" };
+
+  const rm = /^([A-Ga-g])(#|b)?/.exec(s);
+  if (!rm) return { error: "ルート音が読めません（A〜G で始めてください）" };
+  let rootPc = PC_OF[rm[1].toUpperCase()];
+  if (rm[2] === "#") rootPc = (rootPc + 1) % 12;
+  if (rm[2] === "b") rootPc = (rootPc + 11) % 12;
+
+  let rest = s.slice(rm[0].length);
+  let bassPc = null;
+
+  const lookup = (r) => (r in EXACT) ? EXACT[r]
+                      : (r.toLowerCase() in LOWER) ? LOWER[r.toLowerCase()] : null;
+
+  let tn = lookup(rest);
+  if (tn === null && rest.includes("/")) {          // slash bass ("C/E"), after "6/9" had its chance
+    const i = rest.lastIndexOf("/");
+    const b = noteToPc(rest.slice(i + 1));
+    if (b !== null) { bassPc = b; tn = lookup(rest.slice(0, i)); }
+  }
+  if (tn === null) return { error: "「" + rest + "」というコードタイプは認識できません" };
+  return { rootPc, type: CHORD_TYPES.find(t => t.name === tn), bassPc };
+}
+
+/* ============================================================
+   UI layer
+   ============================================================ */
+const TUNINGS = [
+  { name: "Standard",        midi: [40,45,50,55,59,64] },
+  { name: "Drop D",          midi: [38,45,50,55,59,64] },
+  { name: "DADGAD",          midi: [38,45,50,55,57,62] },
+  { name: "Open G",          midi: [38,43,50,55,59,62] },
+  { name: "Open D",          midi: [38,45,50,54,57,62] },
+  { name: "Half step down",  midi: [40,45,50,55,59,64].map(x => x - 1) },
+  { name: "Whole step down", midi: [40,45,50,55,59,64].map(x => x - 2) },
+];
+const NF = 15;                       // frets drawn
+const ROLE_COLOR = {
+  root:"var(--c-root)", third:"var(--c-third)", sus:"var(--c-sus)",
+  fifth:"var(--c-fifth)", seventh:"var(--c-seventh)", tension:"var(--c-tension)",
+};
+
+const state = {
+  tuning: TUNINGS[0].midi.slice(),
+  capo: 0,
+  fingering: [null, 3, 2, 0, 1, 0],   // absolute frets (capo == "open"); null == muted
+  useFlat: false,
+  strum: true,
+  showNames: true,                    // note name inside each fretted dot
+  query: "",
+  posMin: 0, posMax: 12,
+  minStrings: 4,
+  rootBassOnly: false,
+  sortBy: "diff",
+  fingerMap: null,                    // string -> finger number, only after a card is applied
+};
+
+const $ = (id) => document.getElementById(id);
+const names = () => state.useFlat ? NAMES_FLAT : NAMES_SHARP;
+const openMidiArr = () => state.tuning.map(x => x + state.capo);
+const pcName = (pc) => names()[((pc % 12) + 12) % 12];
+
+function soundingList() {                       // [{s, midi}] low string first
+  const out = [];
+  for (let i = 0; i < 6; i++) if (state.fingering[i] !== null)
+    out.push({ s: i, midi: state.tuning[i] + state.fingering[i] });
+  return out;
+}
+function soundingMidi() { return soundingList().map(x => x.midi); }
+
+/* ---------- URL state (section 9) ---------- */
+function saveURL() {
+  // built by hand rather than URLSearchParams so the commas stay literal (section 9)
+  const q = "t=" + state.tuning.join(",")
+          + "&c=" + state.capo
+          + "&f=" + state.fingering.map(x => x === null ? "x" : x).join(",")
+          + "&acc=" + (state.useFlat ? "flat" : "sharp");
+  // file:// rejects replaceState in some browsers; opening index.html directly must still work
+  try { history.replaceState(null, "", location.pathname + "?" + q); } catch (_) {}
+}
+function loadURL() {
+  const p = new URLSearchParams(location.search);
+  const t = p.get("t");
+  if (t) {
+    const a = t.split(",").map(Number);
+    if (a.length === 6 && a.every(n => Number.isFinite(n) && n >= 0 && n <= 127)) state.tuning = a;
+  }
+  const c = parseInt(p.get("c"), 10);
+  if (Number.isFinite(c) && c >= 0 && c <= 12) state.capo = c;
+  const f = p.get("f");
+  if (f) {
+    const a = f.split(",").map(x => x === "x" ? null : parseInt(x, 10));
+    if (a.length === 6 && a.every(x => x === null || (Number.isFinite(x) && x >= 0 && x <= NF)))
+      state.fingering = a;
+  }
+  if (p.get("acc") === "flat") state.useFlat = true;
+  clampToCapo();
+}
+function clampToCapo() {
+  for (let i = 0; i < 6; i++)
+    if (state.fingering[i] !== null && state.fingering[i] < state.capo) state.fingering[i] = state.capo;
+}
+
+/* ---------- identification for the current board ---------- */
+function currentResults() { return identifyChord(soundingMidi(), state.useFlat); }
+
+/* the same grip read as a shape behind the capo (section 5-4) */
+function shapeLabel() {
+  if (state.capo === 0) return null;
+  const midi = [];
+  for (let i = 0; i < 6; i++)
+    if (state.fingering[i] !== null) midi.push(state.tuning[i] + (state.fingering[i] - state.capo));
+  const r = identifyChord(midi, state.useFlat);
+  return r.length ? r[0].label : null;
+}
+
+/* ---------- fretboard ---------- */
+const isVertical = () => {
+  if (window.matchMedia("(max-width:639px) and (orientation:portrait)").matches) return true;
+  // narrow embed whose layout viewport lies about the real width: fall back to the
+  // space the board actually has
+  const box = document.getElementById("boardBox");
+  return !!box && box.clientWidth > 0 && box.clientWidth < 620
+      && window.matchMedia("(orientation:portrait)").matches;
+};
+
+function geom() {
+  if (isVertical()) {
+    const padL = 30, colW = 54, nutY = 44, cellH = 44;
+    return { v:true, padL, colW, nutY, cellH,
+      W: padL * 2 + colW * 5, H: nutY + NF * cellH + 26,
+      sx: i => padL + i * colW,
+      fy: f => nutY + (f - 0.5) * cellH,
+      line: f => nutY + f * cellH,
+      openY: nutY - 22 };
+  }
+  const padT = 28, rowH = 32, nutX = 56, cellW = 56;
+  return { v:false, padT, rowH, nutX, cellW,
+    W: nutX + NF * cellW + 24, H: padT * 2 + rowH * 5,
+    sy: i => padT + (5 - i) * rowH,
+    fx: f => nutX + (f - 0.5) * cellW,
+    line: f => nutX + f * cellW,
+    openX: nutX - 26 };
+}
+
+function roleAt(midi, res) {
+  if (!res) return null;
+  const deg = ((midi % 12) - res.root + 12) % 12;
+  if (!res.type.intervals.includes(deg)) return null;
+  return degreeRole(deg, res.type);
+}
+
+function renderBoard() {
+  const g = geom(), res = currentResults()[0] || null;
+  const box = $("boardBox");
+  box.classList.toggle("vert", g.v);
+  const om = openMidiArr();
+  let s = `<svg id="board" width="${g.W}" height="${g.H}" viewBox="0 0 ${g.W} ${g.H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  /* position markers */
+  const marks = [3,5,7,9,15], dbl = [12];
+  for (const f of marks.concat(dbl)) {
+    if (f > NF) continue;
+    const two = dbl.includes(f);
+    if (g.v) {
+      const y = g.fy(f);
+      const xs = two ? [g.sx(1.3), g.sx(3.7)] : [g.sx(2.5)];
+      for (const x of xs) s += `<circle cx="${x}" cy="${y}" r="6.5" fill="#28323f"/>`;
+    } else {
+      const x = g.fx(f);
+      const ys = two ? [g.sy(4) - 8, g.sy(1) + 8] : [(g.sy(0) + g.sy(5)) / 2];
+      for (const y of ys) s += `<circle cx="${x}" cy="${y}" r="6.5" fill="#28323f"/>`;
+    }
+  }
+
+  /* frets */
+  for (let f = 0; f <= NF; f++) {
+    const w = f === 0 ? 5 : 1.4, col = f === 0 ? "#c9d3e0" : "#3c4756";
+    s += g.v
+      ? `<line x1="${g.sx(0)}" y1="${g.line(f)}" x2="${g.sx(5)}" y2="${g.line(f)}" stroke="${col}" stroke-width="${w}"/>`
+      : `<line x1="${g.line(f)}" y1="${g.sy(5)}" x2="${g.line(f)}" y2="${g.sy(0)}" stroke="${col}" stroke-width="${w}"/>`;
+  }
+  /* fret numbers */
+  for (let f = 1; f <= NF; f++) {
+    s += g.v
+      ? `<text x="${g.sx(0) - 17}" y="${g.fy(f) + 4}" font-size="10" fill="#5d6a7b" text-anchor="middle">${f}</text>`
+      : `<text x="${g.fx(f)}" y="${g.sy(0) + 20}" font-size="10" fill="#5d6a7b" text-anchor="middle">${f}</text>`;
+  }
+
+  /* strings */
+  for (let i = 0; i < 6; i++) {
+    const w = 1 + (5 - i) * 0.32;
+    s += g.v
+      ? `<line x1="${g.sx(i)}" y1="${g.nutY}" x2="${g.sx(i)}" y2="${g.line(NF)}" stroke="#7d8899" stroke-width="${w}"/>`
+      : `<line x1="${g.nutX}" y1="${g.sy(i)}" x2="${g.line(NF)}" y2="${g.sy(i)}" stroke="#7d8899" stroke-width="${w}"/>`;
+    /* open-string note name — this IS the sounding pitch when the string is played
+       open, so highlight it in the degree colour instead of drawing a label inside
+       the small open-circle marker */
+    const nm = pcName(om[i]);
+    const lit = state.fingering[i] === state.capo;
+    const role = lit ? roleAt(om[i], res) : null;
+    const lc = lit ? (role ? ROLE_COLOR[role] : "#c3ccd8") : "#7f8b9c";
+    const lw = lit ? ' font-weight="700"' : "";
+    s += g.v
+      ? `<text x="${g.sx(i)}" y="14" font-size="10" fill="${lc}"${lw} text-anchor="middle">${nm}</text>`
+      : `<text x="14" y="${g.sy(i) + 4}" font-size="10" fill="${lc}"${lw} text-anchor="middle">${nm}</text>`;
+  }
+
+  /* greyed-out region behind the capo */
+  if (state.capo > 0) {
+    s += g.v
+      ? `<rect x="${g.sx(0) - 8}" y="${g.line(0)}" width="${g.colW * 5 + 16}" height="${g.line(state.capo) - g.line(0)}" fill="rgba(10,13,18,.62)"/>`
+      : `<rect x="${g.line(0)}" y="${g.sy(5) - 8}" width="${g.line(state.capo) - g.line(0)}" height="${g.rowH * 5 + 16}" fill="rgba(10,13,18,.62)"/>`;
+    const cb = 9;
+    s += g.v
+      ? `<rect x="${g.sx(0) - 12}" y="${g.fy(state.capo) - cb / 2}" width="${g.colW * 5 + 24}" height="${cb}" rx="4" fill="#b0752f"/>`
+      : `<rect x="${g.fx(state.capo) - cb / 2}" y="${g.sy(5) - 12}" width="${cb}" height="${g.rowH * 5 + 24}" rx="4" fill="#b0752f"/>`;
+  }
+
+  /* open / mute toggle at the nut */
+  for (let i = 0; i < 6; i++) {
+    const open = state.fingering[i] === state.capo;
+    const cx = g.v ? g.sx(i) : g.openX, cy = g.v ? g.openY : g.sy(i);
+    const role = open ? roleAt(om[i], res) : null;
+    const col = role ? ROLE_COLOR[role] : "#8d99a9";
+    s += open
+      ? `<circle cx="${cx}" cy="${cy}" r="8" fill="none" stroke="${col}" stroke-width="2.4"/>`
+      : `<g stroke="#7b8797" stroke-width="2.2" stroke-linecap="round">
+           <line x1="${cx-5.5}" y1="${cy-5.5}" x2="${cx+5.5}" y2="${cy+5.5}"/>
+           <line x1="${cx+5.5}" y1="${cy-5.5}" x2="${cx-5.5}" y2="${cy+5.5}"/></g>`;
+    s += `<rect class="hit" data-s="${i}" data-f="open" x="${cx-16}" y="${cy-16}" width="32" height="32"/>`;
+  }
+
+  /* fretted dots */
+  for (let i = 0; i < 6; i++) {
+    const f = state.fingering[i];
+    if (f === null || f === state.capo) continue;
+    const cx = g.v ? g.sx(i) : g.fx(f), cy = g.v ? g.fy(f) : g.sy(i);
+    const role = roleAt(state.tuning[i] + f, res);
+    const col = role ? ROLE_COLOR[role] : "var(--c-none)";
+    s += `<circle cx="${cx}" cy="${cy}" r="12.5" fill="${col}" stroke="rgba(0,0,0,.35)" stroke-width="1"/>`;
+    const fg = state.fingerMap && state.fingerMap[i];
+    if (state.showNames) {
+      const nm = pcName(state.tuning[i] + f);
+      s += `<text x="${cx}" y="${cy + 4}" font-size="${nm.length > 1 ? 10 : 11.5}" font-weight="700" fill="#fff" text-anchor="middle">${nm}</text>`;
+      // the dot centre is taken by the note name, so the finger number moves to a
+      // badge placed along whichever axis has room in this orientation
+      if (fg) {
+        const bx = g.v ? cx + 15 : cx + 17, by = g.v ? cy - 13 : cy;
+        s += `<circle cx="${bx}" cy="${by}" r="6.5" fill="#0f1319" stroke="${col}" stroke-width="1.3"/>`
+           + `<text x="${bx}" y="${by + 3.2}" font-size="9" font-weight="700" fill="#fff" text-anchor="middle">${fg}</text>`;
+      }
+    } else if (fg) {
+      s += `<text x="${cx}" y="${cy + 4.5}" font-size="12" font-weight="700" fill="#fff" text-anchor="middle">${fg}</text>`;
+    }
+  }
+
+  /* hit targets, only where a finger can actually go */
+  for (let i = 0; i < 6; i++) {
+    for (let f = state.capo + 1; f <= NF; f++) {
+      const cx = g.v ? g.sx(i) : g.fx(f), cy = g.v ? g.fy(f) : g.sy(i);
+      const hw = g.v ? g.colW / 2 : g.cellW / 2, hh = g.v ? g.cellH / 2 : g.rowH / 2;
+      s += `<rect class="hit" data-s="${i}" data-f="${f}" x="${cx - hw}" y="${cy - hh}" width="${hw * 2}" height="${hh * 2}"/>`;
+    }
+  }
+
+  s += `</svg>`;
+  box.innerHTML = s;
+}
+
+/* ---------- results (section 5-3 / 5-4) ---------- */
+function renderResults() {
+  const list = currentResults(), el = $("results"), n = soundingMidi().length;
+
+  const readout = soundingList().map(x => pcName(x.midi)).join(" ");
+  $("noteReadout").textContent = n ? "— " + readout : "";
+
+  if (n === 0) { el.innerHTML = `<div class="empty">指板をタップして音を選んでください。</div>`; return; }
+  if (n === 1) { el.innerHTML = `<div class="empty">単音（${readout}）— コードではありません。</div>`; return; }
+  if (n === 2 && !list.length) {
+    el.innerHTML = `<div class="empty">${intervalName()} — 2音のみ</div>`; return;
+  }
+  if (!list.length) { el.innerHTML = `<div class="empty">該当するコードがありません。</div>`; return; }
+
+  const shape = shapeLabel();
+  const top = list[0].score;
+  el.innerHTML = list.map((c, i) => {
+    const pct = Math.max(6, Math.round(c.score / top * 100));
+    const sh = (i === 0 && shape) ? `<span class="shape">カポ${state.capo}F: ${shape}</span>` : "";
+    return `<button class="res${i === 0 ? " top" : ""}" data-label="${c.label}">
+      <span class="lab">${c.label}${sh}</span>
+      <span class="why">${reasonFor(c, state.useFlat)}</span>
+      <span class="conf"><i style="width:${pct}%"></i></span>
+      <span class="sc">${c.score}</span>
+    </button>`;
+  }).join("");
+
+  if (n === 2) {
+    el.insertAdjacentHTML("beforeend", `<div class="empty">${intervalName()}</div>`);
+  }
+}
+
+const IVL = ["完全1度","短2度","長2度","短3度","長3度","完全4度","増4度/減5度","完全5度","短6度","長6度","短7度","長7度"];
+function intervalName() {
+  const m = soundingMidi().slice().sort((a, b) => a - b);
+  if (m.length !== 2) return "";
+  const d = (m[1] - m[0]) % 12;
+  let s = pcName(m[0]) + " → " + pcName(m[1]) + " : " + IVL[d];
+  if (d === 7) s += "（パワーコード " + pcName(m[0]) + "5）";
+  return s;
+}
+
+/* ---------- voicing search (section 6) ---------- */
+let vCache = [], vCacheKey = "";
+
+function runSearch() {
+  const q = state.query.trim();
+  const err = $("qerr");
+  if (!q) { err.style.display = "none"; $("cards").innerHTML = ""; $("cardsMsg").textContent = "コード名を入力すると押さえ方を生成します。"; return; }
+  const r = parseChord(q);
+  if (r.error) {
+    err.style.display = ""; err.textContent = r.error;
+    $("cards").innerHTML = ""; $("cardsMsg").textContent = "";
+    return;
+  }
+  err.style.display = "none";
+  const om = openMidiArr();
+  const key = r.rootPc + "|" + r.type.name + "|" + om.join(",");
+  if (key !== vCacheKey) { vCache = generateVoicings(r.rootPc, r.type, om); vCacheKey = key; }
+  state.parsed = r;
+  renderCards();
+}
+
+function fingerAssign(fing) {
+  const fr = [];
+  for (let i = 0; i < 6; i++) if (fing[i] !== null && fing[i] > 0) fr.push({ s: i, f: fing[i] });
+  const map = {};
+  if (!fr.length) return map;
+  const minF = Math.min(...fr.map(x => x.f));
+  const atMin = fr.filter(x => x.f === minF);
+  let next = 1;
+  if (atMin.length >= 2) { for (const x of atMin) map[x.s] = 1; next = 2; }
+  const rest = fr.filter(x => !(x.s in map)).sort((a, b) => a.f - b.f || b.s - a.s);
+  for (const x of rest) { map[x.s] = Math.min(next, 4); next++; }
+  return map;
+}
+
+function cardSVG(fing, res) {
+  const cw = 13, ch = 15, left = 10, top = 17;
+  const W = left * 2 + cw * 5, H = top + ch * 4 + 6;
+  const fr = fing.filter(x => x !== null && x > 0);
+  const mx = fr.length ? Math.max(...fr) : 1, mn = fr.length ? Math.min(...fr) : 1;
+  const start = mx <= 4 ? 1 : mn;
+  const showNut = start === 1;
+  const om = openMidiArr();
+  const X = i => left + i * cw, Y = f => top + (f - start + 0.5) * ch;
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  for (let k = 0; k <= 4; k++) {
+    const y = top + k * ch;
+    s += `<line x1="${X(0)}" y1="${y}" x2="${X(5)}" y2="${y}" stroke="${k === 0 && showNut ? "#c9d3e0" : "#3c4756"}" stroke-width="${k === 0 && showNut ? 3 : 1}"/>`;
+  }
+  for (let i = 0; i < 6; i++)
+    s += `<line x1="${X(i)}" y1="${top}" x2="${X(i)}" y2="${top + 4 * ch}" stroke="#6c7787" stroke-width="1"/>`;
+  if (!showNut) s += `<text x="${W - 2}" y="${top + 9}" font-size="8" fill="#7f8b9c" text-anchor="end">${start}fr</text>`;
+  const map = fingerAssign(fing);
+  for (let i = 0; i < 6; i++) {
+    const f = fing[i], x = X(i);
+    if (f === null) {
+      s += `<g stroke="#7b8797" stroke-width="1.6" stroke-linecap="round">
+        <line x1="${x-3}" y1="${top-11}" x2="${x+3}" y2="${top-5}"/>
+        <line x1="${x+3}" y1="${top-11}" x2="${x-3}" y2="${top-5}"/></g>`;
+    } else if (f === 0) {
+      const role = roleAt(om[i], res), col = role ? ROLE_COLOR[role] : "#8d99a9";
+      s += `<circle cx="${x}" cy="${top-8}" r="3.4" fill="none" stroke="${col}" stroke-width="1.6"/>`;
+    } else {
+      const role = roleAt(om[i] + f, res), col = role ? ROLE_COLOR[role] : "var(--c-none)";
+      s += `<circle cx="${x}" cy="${Y(f)}" r="5" fill="${col}"/>`;
+      if (map[i]) s += `<text x="${x}" y="${Y(f) + 2.6}" font-size="7" font-weight="700" fill="#fff" text-anchor="middle">${map[i]}</text>`;
+    }
+  }
+  return s + `</svg>`;
+}
+
+function renderCards() {
+  const r = state.parsed;
+  const grid = $("cards"), msg = $("cardsMsg");
+  if (!r) { grid.innerHTML = ""; return; }
+  let list = vCache.filter(v =>
+    v.minFret >= state.posMin && v.minFret <= state.posMax &&
+    v.play.nSounding >= state.minStrings &&
+    (!state.rootBassOnly || v.bassPc === r.rootPc) &&
+    (r.bassPc === null || r.bassPc === undefined || v.bassPc === r.bassPc)
+  );
+  list.sort(state.sortBy === "diff"
+    ? (a, b) => a.play.diff - b.play.diff || a.minFret - b.minFret
+    : (a, b) => a.minFret - b.minFret || a.play.diff - b.play.diff);
+  const shown = list.slice(0, 20);
+
+  const pseudo = { root: r.rootPc, type: r.type };
+  const cur = state.fingering.map(x => x === null ? "x" : x - state.capo).join(",");
+
+  grid.innerHTML = shown.map(v => {
+    const k = v.fing.map(x => x === null ? "x" : x).join(",");
+    const d = v.play.diff;
+    const badge = d <= 3 ? "易" : d <= 6 ? "中" : d <= 9 ? "難" : "難+";
+    return `<div class="card${k === cur ? " active" : ""}" data-v="${k}">
+      <span class="badge">${badge}</span>
+      ${cardSVG(v.fing, pseudo)}
+      <div class="cardft">${k.replace(/,/g, " ")}</div>
+    </div>`;
+  }).join("");
+
+  msg.textContent = list.length
+    ? `${list.length} 件中 ${shown.length} 件を表示（${pcName(r.rootPc)}${r.type.name}${r.bassPc != null ? "/" + pcName(r.bassPc) : ""}）`
+    : (vCache.length ? "この条件に合う押さえ方がありません。フィルタを緩めてください。" : "押さえられるフォームが見つかりませんでした。");
+}
+
+function applyVoicing(relKey) {
+  const rel = relKey.split(",").map(x => x === "x" ? null : +x);
+  state.fingering = rel.map(x => x === null ? null : x + state.capo);
+  state.fingerMap = fingerAssign(rel);
+  refresh();
+  const box = $("boardBox");
+  if (box.classList.contains("vert")) {
+    const fr = rel.filter(x => x !== null && x > 0);
+    if (fr.length) box.scrollTop = Math.max(0, geom().fy(Math.min(...fr) + state.capo) - 120);
+  }
+}
+
+/* ---------- suggestions (section 7-4) ---------- */
+const SUG_POOL = (() => {
+  const out = [];
+  const order = CHORD_TYPES.slice().sort((a, b) => COMMON_BONUS(b.name) - COMMON_BONUS(a.name));
+  for (const t of order) for (let r = 0; r < 12; r++) {
+    out.push(NAMES_SHARP[r] + t.name);
+    if (NAMES_FLAT[r] !== NAMES_SHARP[r]) out.push(NAMES_FLAT[r] + t.name);
+  }
+  return out;
+})();
+let sugSel = -1;
+function renderSug() {
+  const q = state.query.trim(), box = $("sug");
+  if (!q) { box.style.display = "none"; return; }
+  const lq = q.toLowerCase();
+  // closest match first, then by how common the type is (SUG_POOL is already in that order)
+  const hits = SUG_POOL
+    .map((n, i) => ({ n, i }))
+    .filter(x => x.n.toLowerCase().startsWith(lq) && x.n.toLowerCase() !== lq)
+    .sort((a, b) => a.n.length - b.n.length || a.i - b.i)
+    .slice(0, 7).map(x => x.n);
+  if (!hits.length) { box.style.display = "none"; return; }
+  box.style.display = "";
+  box.innerHTML = hits.map((n, i) => `<button data-n="${n}"${i === sugSel ? ' class="sel"' : ""}>${n}</button>`).join("");
+}
+function hideSug() { $("sug").style.display = "none"; sugSel = -1; }
+
+/* ---------- audio: Karplus-Strong (section 8) ---------- */
+let actx = null;
+function pluck(freq, when, gain) {
+  const sr = actx.sampleRate, dur = 2.6;
+  const N = Math.max(2, Math.round(sr / freq));
+  const buf = actx.createBuffer(1, Math.ceil(sr * dur), sr);
+  const d = buf.getChannelData(0);
+  const line = new Float32Array(N);
+  for (let i = 0; i < N; i++) line[i] = Math.random() * 2 - 1;
+  let p = 0;
+  for (let i = 0; i < d.length; i++) {
+    const nx = (p + 1) % N;
+    d[i] = line[p];
+    line[p] = (line[p] + line[nx]) * 0.5 * 0.9965;
+    p = nx;
+  }
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4200;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(gain, when + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
+  src.connect(lp).connect(g).connect(actx.destination);
+  src.start(when); src.stop(when + dur);
+}
+function playChord() {
+  const notes = soundingList();
+  if (!notes.length) return;
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === "suspended") actx.resume();          // iOS Safari
+  const t0 = actx.currentTime + 0.03;
+  notes.forEach((n, i) => {
+    const f = 440 * Math.pow(2, (n.midi - 69) / 12);
+    pluck(f, t0 + (state.strum ? i * 0.026 : 0), 0.22);
+  });
+}
+
+/* ---------- wiring ---------- */
+function refresh() {
+  renderBoard(); renderResults(); renderCards(); saveURL();
+}
+
+function buildTuningUI() {
+  const sel = $("tuneSel");
+  sel.innerHTML = TUNINGS.map((t, i) => `<option value="${i}">${t.name}</option>`).join("")
+                + `<option value="custom">Custom</option>`;
+  const match = TUNINGS.findIndex(t => t.midi.join() === state.tuning.join());
+  sel.value = match >= 0 ? String(match) : "custom";
+  $("capoSel").innerHTML = Array.from({length:13}, (_,i) => `<option value="${i}">${i===0?"なし":i+"F"}</option>`).join("");
+  $("capoSel").value = String(state.capo);
+  renderTuneRow();
+}
+function renderTuneRow() {
+  const om = openMidiArr();
+  $("tuneRow").innerHTML = state.tuning.map((m, i) =>
+    `<div class="tuner"><span>${6 - i}弦</span>
+       <button data-tune="${i}" data-d="-1">−</button>
+       <b>${pcName(om[i])}${Math.floor(om[i] / 12) - 1}</b>
+       <button data-tune="${i}" data-d="1">+</button></div>`).join("");
+}
+
+document.addEventListener("click", (e) => {
+  const hit = e.target.closest(".hit");
+  if (hit) {
+    const s = +hit.dataset.s, fRaw = hit.dataset.f;
+    if (fRaw === "open") {
+      state.fingering[s] = (state.fingering[s] === state.capo) ? null : state.capo;
+    } else {
+      const f = +fRaw;
+      state.fingering[s] = (state.fingering[s] === f) ? null : f;
+    }
+    state.fingerMap = null;                 // manual edit: finger numbers no longer meaningful
+    refresh();
+    return;
+  }
+  const res = e.target.closest(".res");
+  if (res) { state.query = res.dataset.label; $("q").value = state.query; hideSug(); runSearch(); return; }
+  const card = e.target.closest(".card");
+  if (card) { applyVoicing(card.dataset.v); return; }
+  const sg = e.target.closest("#sug button");
+  if (sg) { state.query = sg.dataset.n; $("q").value = state.query; hideSug(); runSearch(); return; }
+  const tb = e.target.closest("[data-tune]");
+  if (tb) {
+    const i = +tb.dataset.tune, d = +tb.dataset.d, nv = state.tuning[i] + d;
+    if (nv >= 24 && nv <= 88) { state.tuning[i] = nv; $("tuneSel").value = "custom"; renderTuneRow(); vCacheKey = ""; runSearch(); refresh(); }
+    return;
+  }
+  if (!e.target.closest(".sugWrap")) hideSug();
+});
+
+$("tuneSel").addEventListener("change", (e) => {
+  const v = e.target.value;
+  if (v === "custom") return;
+  state.tuning = TUNINGS[+v].midi.slice();
+  renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
+});
+$("capoSel").addEventListener("change", (e) => {
+  state.capo = +e.target.value; clampToCapo(); state.fingerMap = null;
+  renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
+});
+$("accSharp").addEventListener("click", () => {
+  state.useFlat = false; $("accSharp").classList.add("on"); $("accFlat").classList.remove("on"); refresh();
+});
+$("accFlat").addEventListener("click", () => {
+  state.useFlat = true; $("accFlat").classList.add("on"); $("accSharp").classList.remove("on"); refresh();
+});
+$("namesBtn").addEventListener("click", () => {
+  state.showNames = !state.showNames;
+  $("namesBtn").classList.toggle("on", state.showNames);
+  renderBoard();
+});
+$("strumBtn").addEventListener("click", () => {
+  state.strum = true; $("strumBtn").classList.add("on"); $("blockBtn").classList.remove("on");
+});
+$("blockBtn").addEventListener("click", () => {
+  state.strum = false; $("blockBtn").classList.add("on"); $("strumBtn").classList.remove("on");
+});
+$("playBtn").addEventListener("click", playChord);
+$("clearBtn").addEventListener("click", () => {
+  state.fingering = [null,null,null,null,null,null]; state.fingerMap = null; refresh();
+});
+$("tuneToggle").addEventListener("click", () => {
+  const p = $("tunePanel");
+  const show = p.style.display === "none";
+  p.style.display = show ? "" : "none";
+  $("tuneToggle").classList.toggle("on", show);
+});
+
+$("q").addEventListener("input", (e) => { state.query = e.target.value; sugSel = -1; renderSug(); runSearch(); });
+$("q").addEventListener("keydown", (e) => {
+  const box = $("sug"), items = [...box.querySelectorAll("button")];
+  if (e.key === "ArrowDown" && items.length) { e.preventDefault(); sugSel = (sugSel + 1) % items.length; renderSug(); }
+  else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); sugSel = (sugSel - 1 + items.length) % items.length; renderSug(); }
+  else if (e.key === "Enter") {
+    if (sugSel >= 0 && items[sugSel]) { state.query = items[sugSel].dataset.n; e.target.value = state.query; }
+    hideSug(); runSearch(); e.target.blur();
+  } else if (e.key === "Escape") hideSug();
+});
+
+$("posMin").addEventListener("input", syncPos);
+$("posMax").addEventListener("input", syncPos);
+function syncPos() {
+  let a = +$("posMin").value, b = +$("posMax").value;
+  if (a > b) { if (document.activeElement === $("posMin")) b = a; else a = b; $("posMin").value = a; $("posMax").value = b; }
+  state.posMin = a; state.posMax = b;
+  $("posLab").textContent = a + "–" + b + "F";
+  renderCards();
+}
+$("minStr").addEventListener("change", e => { state.minStrings = +e.target.value; renderCards(); });
+$("sortBy").addEventListener("change", e => { state.sortBy = e.target.value; renderCards(); });
+$("rootBass").addEventListener("change", e => { state.rootBassOnly = e.target.checked; renderCards(); });
+
+let rt;
+window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderBoard, 120); });
+window.addEventListener("orientationchange", () => setTimeout(renderBoard, 220));
+
+/* ---------- boot ---------- */
+// When embedded (Artifact, iframe) the host owns the document head. Without a viewport meta a
+// phone lays out at ~980px, so the portrait fretboard never engages and the board
+// renders at 920px scaled down to unusable size. No-op for the standalone file.
+if (!document.querySelector("meta[name=viewport]")) {
+  const m = document.createElement("meta");
+  m.name = "viewport";
+  m.content = "width=device-width, initial-scale=1, viewport-fit=cover";
+  document.head.appendChild(m);
+  requestAnimationFrame(() => renderBoard());   // re-decide once the new viewport applies
+}
+loadURL();
+buildTuningUI();
+$("accSharp").classList.toggle("on", !state.useFlat);
+$("accFlat").classList.toggle("on", state.useFlat);
+syncPos();
+refresh();
+$("cardsMsg").textContent = "コード名を入力すると押さえ方を生成します。";
+</script>
+</body>
+</html>
