@@ -108,6 +108,28 @@ input[type=range]{accent-color:var(--accent);width:96px}
 .tuner b{font-size:11px;min-width:26px;text-align:center;font-weight:600}
 .tuner button{padding:1px 6px;font-size:13px;line-height:1.35}
 .tuner span{font-size:9px;color:var(--tx3)}
+/* Portrait phones only: the fretboard is tall enough to push the verdict off
+   screen, so pin a compact readout to the bottom of the viewport. */
+#mini{
+  position:fixed;left:0;right:0;bottom:0;z-index:40;display:none;
+  align-items:center;gap:10px;cursor:pointer;
+  background:rgba(23,29,38,.97);backdrop-filter:blur(10px);
+  border-top:1px solid var(--line);
+  padding:8px 12px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+}
+#mini .mlab{font-size:22px;font-weight:700;letter-spacing:.01em;white-space:nowrap}
+#mini .mshape{display:block;font-size:9.5px;color:var(--tx3);font-weight:400;letter-spacing:0}
+#mini .mwhy{font-size:11px;color:var(--tx2);flex:1;min-width:0;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mini .mmore{font-size:10px;color:var(--tx2);border:1px solid var(--line);
+             border-radius:999px;padding:3px 9px;white-space:nowrap}
+#mini.dim .mlab{color:var(--tx3);font-size:15px;font-weight:500}
+
+@media (max-width:639px) and (orientation:portrait){
+  #mini{display:flex}
+  body{padding-bottom:86px}
+  #boardBox.vert{max-height:58vh}
+}
 @media (max-width:639px){
   .wrap{padding:0 8px}
   .res .lab{min-width:86px;font-size:16px}
@@ -128,6 +150,12 @@ input[type=range]{accent-color:var(--accent);width:96px}
     いったんファイルを保存してから、<b>Safari や Chrome</b> で開いてください。
   </div>
 </noscript>
+
+<div id="mini">
+  <span class="mlab" id="miniLab">—</span>
+  <span class="mwhy" id="miniWhy">指板をタップ</span>
+  <span class="mmore" id="miniMore"></span>
+</div>
 
 <div class="bar">
   <div class="wrap">
@@ -761,6 +789,7 @@ function renderResults() {
 
   const readout = soundingList().map(x => pcName(x.midi)).join(" ");
   $("noteReadout").textContent = n ? "— " + readout : "";
+  renderMini(list, n, readout);          // before the early returns, so every case updates it
 
   if (n === 0) { el.innerHTML = `<div class="empty">指板をタップして音を選んでください。</div>`; return; }
   if (n === 1) { el.innerHTML = `<div class="empty">単音（${readout}）— コードではありません。</div>`; return; }
@@ -785,6 +814,31 @@ function renderResults() {
   if (n === 2) {
     el.insertAdjacentHTML("beforeend", `<div class="empty">${intervalName()}</div>`);
   }
+}
+
+/* Bottom readout for portrait phones. Deliberately keeps the "他N件" affordance
+   rather than showing a single answer — the candidate list is the real result
+   (section 2-2), this is only a shortcut to it. */
+function renderMini(list, n, readout) {
+  const bar = $("mini"), lab = $("miniLab"), why = $("miniWhy"), more = $("miniMore");
+  const dim = (l, w) => { bar.classList.add("dim"); lab.textContent = l; why.textContent = w; more.textContent = ""; };
+
+  if (n === 0)      return dim("—", "指板をタップして音を選ぶ");
+  if (n === 1)      return dim(readout, "単音 — コードではありません");
+  if (!list.length) {
+    if (n === 2) {
+      const m = soundingMidi().slice().sort((a, b) => a - b);
+      return dim(readout, IVL[(m[1] - m[0]) % 12] + "（2音のみ）");
+    }
+    return dim("?", "該当するコードがありません");
+  }
+
+  bar.classList.remove("dim");
+  const shape = shapeLabel();
+  lab.innerHTML = list[0].label
+    + (shape ? `<span class="mshape">カポ${state.capo}F: ${shape}</span>` : "");
+  why.textContent = reasonFor(list[0], state.useFlat);
+  more.textContent = list.length > 1 ? `他${list.length - 1}件 ▲` : "";
 }
 
 const IVL = ["完全1度","短2度","長2度","短3度","長3度","完全4度","増4度/減5度","完全5度","短6度","長6度","短7度","長7度"];
@@ -1014,6 +1068,10 @@ document.addEventListener("click", (e) => {
     }
     state.fingerMap = null;                 // manual edit: finger numbers no longer meaningful
     refresh();
+    return;
+  }
+  if (e.target.closest("#mini")) {          // shortcut to the full candidate list
+    $("results").scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
   const res = e.target.closest(".res");
