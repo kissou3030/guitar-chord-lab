@@ -1533,6 +1533,22 @@ $("accFlat").classList.toggle("on", state.useFlat);
 syncPos();
 refresh();
 $("cardsMsg").textContent = "コード名を入力すると押さえ方を生成します。";
+
+/* The board half opens holding a chord; the search half opened empty, so the page
+   only ever demonstrated one of its two directions. Seed the search once from
+   whatever the board is showing. Deferred to idle: the sweep is ~0.5s of main
+   thread and must not sit between the user and the first paint. */
+function seedSearch() {
+  if (state.query.trim()) return;              // a query already in play wins
+  const top = currentResults()[0];
+  if (!top) return;                            // nothing identified: leave it empty
+  state.query = top.label;
+  $("q").value = state.query;
+  runSearch();
+}
+(window.requestIdleCallback
+  ? (f) => window.requestIdleCallback(f, { timeout: 1500 })
+  : (f) => setTimeout(f, 200))(seedSearch);
 </script>
 </body>
 </html>
