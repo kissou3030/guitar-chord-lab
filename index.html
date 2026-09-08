@@ -223,7 +223,7 @@ button{
           margin-right:var(--s1);vertical-align:1px}
 
 /* ---- chord search ---------------------------------------------------- */
-.sugWrap{position:relative;max-width:340px}
+.sugWrap{position:relative;max-width:340px;flex:1}
 #q{width:100%;font-size:15px;padding:10px 12px;font-weight:400;letter-spacing:.02em}
 #sug{
   position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;
@@ -233,7 +233,19 @@ button{
 #sug button{display:block;width:100%;border:0;border-radius:0;text-align:left;
             padding:8px 12px;font-size:14px;color:var(--tx-2)}
 #sug button:hover,#sug button.sel{background:#F4F4F1;color:var(--tx-1)}
-#qerr{color:var(--accent);font-size:12px;padding:var(--s2) 2px 0}
+#qerr{color:var(--accent);font-size:12px}
+/* the second way in. it sits above the board settings rather than inside them:
+   it is not something the board shows, it is the other end of the same loop */
+.ctlrow.find{margin-bottom:var(--s3)}
+.ctlrow.find .field{flex:1;max-width:420px}
+/* the cards are a screenful down, so the count doubles as the way to them */
+#qJump{font-size:12px;color:var(--accent);white-space:nowrap;padding:4px 6px}
+#qJump:hover{color:var(--accent)}
+#qJump:disabled{color:var(--tx-4);cursor:default}
+/* the input is a screenful up now, so the heading says what was searched and goes back */
+.backlink{font-size:12px;font-weight:400;color:var(--tx-4);letter-spacing:.04em;
+          background:transparent;border:0;padding:0 2px}
+.backlink:hover{color:var(--accent)}
 
 .filters{display:flex;gap:var(--s5);flex-wrap:wrap;align-items:center;margin-top:var(--s5)}
 .filters .field > span{font-size:11px}
@@ -338,6 +350,17 @@ input[type=range]::-moz-range-thumb{
 <main class="shell">
 
   <section>
+    <div class="ctlrow find">
+      <label class="field"><span>コード名で探す</span>
+        <span class="sugWrap">
+          <input type="text" id="q" placeholder="Cm7、F#7#9、Bbmaj9 …" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div id="sug" style="display:none"></div>
+        </span>
+      </label>
+      <button id="qJump" class="link" type="button" hidden></button>
+      <span id="qerr" style="display:none"></span>
+    </div>
+
     <div class="ctlrow">
       <label class="field"><span>チューニング</span><select id="tuneSel"></select></label>
       <span class="tunenow" id="tuneNow"></span>
@@ -390,13 +413,8 @@ input[type=range]::-moz-range-thumb{
     </div>
   </section>
 
-  <section class="sec">
-    <h2 class="seclabel">押さえ方を探す</h2>
-    <div class="sugWrap">
-      <input type="text" id="q" placeholder="Cm7、F#7#9、Bbmaj9 …" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <div id="sug" style="display:none"></div>
-    </div>
-    <div id="qerr" style="display:none"></div>
+  <section class="sec" id="findSec">
+    <h2 class="seclabel">押さえ方 <button id="findBack" class="backlink" type="button" hidden></button></h2>
 
     <div class="filters">
       <div class="field">
@@ -1065,11 +1083,14 @@ function runSearch() {
   const token = ++searchToken;
   $("cards").classList.remove("busy");
   $("cardsMsg").classList.remove("loading");
-  if (!q) { err.style.display = "none"; $("cards").innerHTML = ""; $("cardsMsg").textContent = "コード名を入力すると押さえ方を生成します。"; return; }
+  if (!q) {
+    err.style.display = "none"; $("cards").innerHTML = ""; renderFindStatus(0);
+    $("cardsMsg").textContent = "コード名を入力すると押さえ方を生成します。"; return;
+  }
   const r = parseChord(q);
   if (r.error) {
     err.style.display = ""; err.textContent = r.error;
-    $("cards").innerHTML = ""; $("cardsMsg").textContent = "";
+    $("cards").innerHTML = ""; $("cardsMsg").textContent = ""; renderFindStatus(0);
     return;
   }
   err.style.display = "none";
@@ -1084,6 +1105,7 @@ function runSearch() {
   $("cards").classList.add("busy");
   $("cardsMsg").classList.add("loading");
   $("cardsMsg").textContent = "押さえ方を探しています";
+  renderFindStatus("loading");
   requestAnimationFrame(() => setTimeout(() => {
     if (token !== searchToken) return;               // a newer query superseded this one
     vCache = generateVoicings(r.rootPc, r.type, om);
@@ -1147,7 +1169,7 @@ function cardSVG(fing, res) {
 function renderCards() {
   const r = state.parsed;
   const grid = $("cards"), msg = $("cardsMsg");
-  if (!r) { grid.innerHTML = ""; return; }
+  if (!r) { grid.innerHTML = ""; renderFindStatus(0); return; }
   let list = vCache.filter(v =>
     v.minFret >= state.posMin && v.minFret <= state.posMax &&
     v.play.nSounding >= state.minStrings &&
@@ -1176,6 +1198,7 @@ function renderCards() {
   msg.textContent = list.length
     ? `${list.length} 件中 ${shown.length} 件を表示（${pcName(r.rootPc)}${r.type.name}${r.bassPc != null ? "/" + pcName(r.bassPc) : ""}）`
     : (vCache.length ? "この条件に合う押さえ方がありません。フィルタを緩めてください。" : "押さえられるフォームが見つかりませんでした。");
+  renderFindStatus(list.length);
 }
 
 function applyVoicing(relKey) {
@@ -1255,6 +1278,24 @@ function playChord() {
 }
 
 /* ---------- wiring ---------- */
+/* smooth by default, but honour a reduced-motion preference like the CSS does */
+function scrollToEl(el, block) {
+  el.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion:reduce)").matches ? "auto" : "smooth",
+    block: block || "start",
+  });
+}
+/* the input sits above the board and the cards a screenful below it, so the count
+   is the only feedback in place that the search did anything — and the way down */
+function renderFindStatus(n) {
+  const j = $("qJump"), bk = $("findBack"), q = state.query.trim();
+  j.disabled = n === "loading";
+  j.hidden = !n;
+  j.textContent = n === "loading" ? "探しています…" : n ? `${n}件 ↓` : "";
+  bk.hidden = !q;
+  bk.textContent = q ? `— ${q} ↑` : "";
+}
+
 function refresh() {
   renderBoard(); renderResults(); renderCards(); saveURL();
 }
@@ -1363,15 +1404,23 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (e.target.closest("#mini")) {          // shortcut to the full candidate list
-    $("results").scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToEl($("results"), "center");
     return;
   }
   const res = e.target.closest(".res");
-  if (res) { state.query = res.dataset.label; $("q").value = state.query; hideSug(); runSearch(); return; }
+  if (res) {
+    state.query = res.dataset.label; $("q").value = state.query; hideSug(); runSearch();
+    scrollToEl($("findSec"));      // the cards are a screenful down: go there, or nothing visibly happened
+    return;
+  }
   const card = e.target.closest(".card");
   if (card) { applyVoicing(card.dataset.v); return; }
   const sg = e.target.closest("#sug button");
-  if (sg) { state.query = sg.dataset.n; $("q").value = state.query; hideSug(); runSearch(); return; }
+  if (sg) {
+    state.query = sg.dataset.n; $("q").value = state.query; hideSug(); runSearch();
+    scrollToEl($("findSec"));
+    return;
+  }
   if (!e.target.closest(".sugWrap")) hideSug();
 });
 
@@ -1440,10 +1489,15 @@ $("q").addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); sugSel = (sugSel - 1 + items.length) % items.length; renderSug(); }
   else if (e.key === "Enter") {
     if (sugSel >= 0 && items[sugSel]) { state.query = items[sugSel].dataset.n; e.target.value = state.query; }
-    hideSug(); runSearch(); e.target.blur();
+    hideSug(); runSearch(); e.target.blur(); scrollToEl($("findSec"));
   } else if (e.key === "Escape") hideSug();
 });
 
+$("qJump").addEventListener("click", () => scrollToEl($("findSec")));
+$("findBack").addEventListener("click", () => {
+  $("q").focus({ preventScroll: true });     // focus() scrolls on its own, and not smoothly
+  scrollToEl($("q"), "center");
+});
 $("posMin").addEventListener("input", syncPos);
 $("posMax").addEventListener("input", syncPos);
 function syncPos() {
