@@ -277,7 +277,10 @@ input[type=range]::-moz-range-thumb{
 .card:hover{border-color:#D0D0CA}
 .card.active{border-color:var(--accent)}
 .card svg{display:block;margin:0 auto}
-.badge{position:absolute;top:6px;right:8px;font-size:10px;color:var(--tx-4);letter-spacing:.04em}
+.badge,.pos{position:absolute;top:6px;font-size:10px;color:var(--tx-4);letter-spacing:.04em;
+            line-height:1}   /* body's 1.9 would drop the box onto the mute/open row */
+.badge{right:8px}
+.pos{left:8px;font-variant-numeric:tabular-nums}
 .cardft{font-size:10px;color:var(--tx-4);margin-top:var(--s1);
         font-variant-numeric:tabular-nums;letter-spacing:.04em}
 #cardsMsg{color:var(--tx-4);font-size:12px;margin-top:var(--s4);line-height:1.9}
@@ -1129,12 +1132,17 @@ function fingerAssign(fing) {
   return map;
 }
 
+/* the fret the diagram window starts at. 1 (and a drawn nut) whenever the whole
+   shape fits inside the first four frets, otherwise the lowest fretted fret */
+function cardStart(fing) {
+  const fr = fing.filter(x => x !== null && x > 0);
+  const mx = fr.length ? Math.max(...fr) : 1, mn = fr.length ? Math.min(...fr) : 1;
+  return mx <= 4 ? 1 : mn;
+}
 function cardSVG(fing, res) {
   const cw = 13, ch = 15, left = 10, top = 17;
   const W = left * 2 + cw * 5, H = top + ch * 4 + 6;
-  const fr = fing.filter(x => x !== null && x > 0);
-  const mx = fr.length ? Math.max(...fr) : 1, mn = fr.length ? Math.min(...fr) : 1;
-  const start = mx <= 4 ? 1 : mn;
+  const start = cardStart(fing);
   const showNut = start === 1;
   const om = openMidiArr();
   const X = i => left + i * cw, Y = f => top + (f - start + 0.5) * ch;
@@ -1145,7 +1153,6 @@ function cardSVG(fing, res) {
   }
   for (let i = 0; i < 6; i++)
     s += `<line x1="${X(i)}" y1="${top}" x2="${X(i)}" y2="${top + 4 * ch}" stroke="var(--string)" stroke-width="1"/>`;
-  if (!showNut) s += `<text x="${W - 2}" y="${top + 9}" font-size="8" fill="var(--tx-4)" text-anchor="end">${start}fr</text>`;
   const map = fingerAssign(fing);
   for (let i = 0; i < 6; i++) {
     const f = fing[i], x = X(i);
@@ -1187,7 +1194,9 @@ function renderCards() {
     const k = v.fing.map(x => x === null ? "x" : x).join(",");
     const d = v.play.diff;
     const badge = d <= 3 ? "易" : d <= 6 ? "中" : d <= 9 ? "難" : "難+";
+    const st = cardStart(v.fing);
     return `<div class="card${k === cur ? " active" : ""}" data-v="${k}">
+      ${st > 1 ? `<span class="pos">${st}fr</span>` : ""}
       <span class="badge">${badge}</span>
       ${cardSVG(v.fing, pseudo)}
       <div class="cardft">${k.replace(/,/g, " ")}</div>
