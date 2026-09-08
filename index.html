@@ -147,31 +147,40 @@ button{
 .field > span{font-size:11px;color:var(--tx-4);letter-spacing:.06em;white-space:nowrap}
 .spacer{flex:1}
 
-#tunePanel{margin-top:var(--s5);padding-top:var(--s5);border-top:1px solid var(--line-soft)}
-.tunerow{display:flex;gap:var(--s2);flex-wrap:wrap}
-.tuner{display:inline-flex;align-items:center;gap:var(--s1);
-       border:1px solid var(--line);border-radius:var(--r);
-       background:var(--surface);padding:0 var(--s2)}
-.tuner span{font-size:10px;color:var(--tx-4)}
-.tuner .lb{min-width:2.4em}
-.tuner .val{display:inline-flex;align-items:baseline;gap:3px;justify-content:center}
-.tuner b{font-size:12px;font-weight:500;color:var(--tx-1);min-width:30px;text-align:center;
-         font-variant-numeric:tabular-nums}
-.tuner .snd{font-style:normal;font-variant-numeric:tabular-nums}
-/* 44px minimum touch target; the glyph stays visually light */
-.tuner button{min-width:44px;min-height:44px;padding:0;
-              font-size:15px;color:var(--tx-4);line-height:1}
-.tuner button:hover{color:var(--tx-1)}
-.tuner button:disabled{opacity:.3;cursor:default}
-.tuner button:disabled:hover{color:var(--tx-4)}
-.tunehint{margin:var(--s2) 0 0;font-size:11px;color:var(--tx-4);line-height:1.7}
-.tunehint:empty{display:none}
+/* the tuning editor lives on the nut: the open-string note name IS the control,
+   and one string at a time gets this popover. the string spacing (32px across,
+   52px down) has no room for a permanent pair of steppers per string. */
+.tunepop{
+  position:absolute;z-index:20;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:0 2px 10px rgba(26,26,26,.10);
+  padding:2px var(--s2) var(--s1);
+}
+.tunepop .tp-main{display:flex;align-items:center;gap:var(--s1)}
+.tunepop .tp-str{font-size:10px;color:var(--tx-4);min-width:2.4em}
+.tunepop button{min-width:44px;min-height:44px;padding:0;
+                font-size:15px;color:var(--tx-4);line-height:1}
+.tunepop button:hover{color:var(--tx-1)}
+.tunepop button:disabled{opacity:.3;cursor:default}
+.tunepop button:disabled:hover{color:var(--tx-4)}
+.tunepop .tp-x{min-width:30px;min-height:30px;font-size:13px;margin-left:var(--s1)}
+.tunepop .tp-val{display:inline-flex;align-items:baseline;gap:3px;
+                 justify-content:center;min-width:54px}
+.tunepop b{font-size:13px;font-weight:500;color:var(--tx-1);font-variant-numeric:tabular-nums}
+.tunepop .tp-snd{font-size:10px;color:var(--tx-4);font-variant-numeric:tabular-nums}
+.tunepop .tp-hint{margin:0;font-size:10px;color:var(--tx-4);line-height:1.6;text-align:center}
+/* the note name at the nut, dressed as the control it now is */
+.tunechip{fill:var(--bg);stroke:var(--line-soft);stroke-width:1}
+.tunechip.on{fill:var(--accent-soft);stroke:var(--accent)}
+.tunehit{fill:transparent;cursor:pointer}
+.tunehit:hover{fill:rgba(26,26,26,.04)}
+.tunehit:focus-visible{fill:var(--accent-soft);outline:none}
 /* the current tuning, readable without opening anything */
 .tunenow{font-size:11px;color:var(--tx-3);letter-spacing:.06em;
          font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:calc(var(--s4) * -1 + var(--s2))}
 
 /* ---- fretboard ------------------------------------------------------- */
-.board-sec{margin-top:var(--s6)}
+.board-sec{margin-top:var(--s6);position:relative}
 #boardBox{
   background:var(--surface);
   border:1px solid var(--line);
@@ -292,10 +301,6 @@ input[type=range]::-moz-range-thumb{
   .sec{padding-top:var(--s6);margin-top:var(--s6)}
   .ctlrow{gap:var(--s3)}
   .ctlrow.sub{gap:var(--s4)}
-  /* one string per row: the chips do not fit side by side at 44px targets */
-  .tunerow{flex-direction:column;gap:var(--s1)}
-  .tuner{width:100%}
-  .tuner .val{flex:1}
   .res .lab{min-width:92px;font-size:14px}
   .res.top .lab{font-size:20px}
   #cards{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:var(--s2)}
@@ -349,22 +354,27 @@ input[type=range]::-moz-range-thumb{
 
     <div class="ctlrow sub">
       <button id="namesBtn" class="link on" type="button">音名を表示</button>
-      <button id="tuneToggle" class="link" type="button" aria-expanded="false" aria-controls="tunePanel">弦別チューニング</button>
+      <button id="tuneToggle" class="link" type="button" aria-expanded="false" aria-controls="tunePop">弦別チューニング</button>
       <div class="seg">
         <button id="strumBtn" class="on" type="button">ストラム</button><button id="blockBtn" type="button">同時</button>
       </div>
       <div class="spacer"></div>
       <button id="clearBtn" class="link" type="button">すべて外す</button>
     </div>
-
-    <div id="tunePanel" style="display:none">
-      <div class="tunerow" id="tuneRow"></div>
-      <p class="tunehint" id="tuneHint"></p>
-    </div>
   </section>
 
   <section class="board-sec">
     <div id="boardBox"><svg id="board"></svg></div>
+    <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
+      <div class="tp-main">
+        <span class="tp-str" id="tpStr"></span>
+        <button id="tpDown" type="button" aria-label="半音下げる">−</button>
+        <span class="tp-val"><b id="tpNote"></b><span class="tp-snd" id="tpSnd"></span></span>
+        <button id="tpUp" type="button" aria-label="半音上げる">+</button>
+        <button id="tpClose" class="tp-x" type="button" aria-label="閉じる">×</button>
+      </div>
+      <p class="tp-hint">他の弦もナットの音名をタップ</p>
+    </div>
   </section>
 
   <section class="sec">
@@ -820,21 +830,23 @@ const isVertical = () => {
 
 function geom() {
   if (isVertical()) {
-    const padL = 28, colW = 52, nutY = 44, cellH = 44;
+    // the nut sits lower than the string spacing alone needs: the gutter above it
+    // holds the tuning chip, which must not share a hit target with the open/mute toggle
+    const padL = 28, colW = 52, nutY = 64, cellH = 44;
     return { v:true, padL, colW, nutY, cellH,
       W: padL * 2 + colW * 5, H: nutY + NF * cellH + 26,
       sx: i => padL + i * colW,
       fy: f => nutY + (f - 0.5) * cellH,
       line: f => nutY + f * cellH,
-      openY: nutY - 22 };
+      openY: nutY - 19, tuneMid: 13 };
   }
-  const padT = 28, rowH = 32, nutX = 56, cellW = 56;
+  const padT = 28, rowH = 32, nutX = 76, cellW = 56;
   return { v:false, padT, rowH, nutX, cellW,
     W: nutX + NF * cellW + 24, H: padT * 2 + rowH * 5,
     sy: i => padT + (5 - i) * rowH,
     fx: f => nutX + (f - 0.5) * cellW,
     line: f => nutX + f * cellW,
-    openX: nutX - 26 };
+    openX: nutX - 21, tuneMid: 17 };
 }
 
 function roleAt(midi, res) {
@@ -843,6 +855,8 @@ function roleAt(midi, res) {
   if (!res.type.intervals.includes(deg)) return null;
   return degreeRole(deg, res.type);
 }
+
+let tuneStr = null;                    // string whose nut popover is open, or null
 
 function renderBoard() {
   const g = geom(), res = currentResults()[0] || null;
@@ -887,17 +901,26 @@ function renderBoard() {
     s += g.v
       ? `<line x1="${g.sx(i)}" y1="${g.nutY}" x2="${g.sx(i)}" y2="${g.line(NF)}" stroke="var(--string)" stroke-width="${w}"/>`
       : `<line x1="${g.nutX}" y1="${g.sy(i)}" x2="${g.line(NF)}" y2="${g.sy(i)}" stroke="var(--string)" stroke-width="${w}"/>`;
-    /* open-string note name — this IS the sounding pitch when the string is played
-       open, so highlight it in the degree colour instead of drawing a label inside
-       the small open-circle marker */
+  }
+
+  /* open-string note name — this IS the sounding pitch when the string is played
+     open, so highlight it in the degree colour instead of drawing a label inside
+     the small open-circle marker. it is also this string's tuning control: the
+     chip and its own hit target sit in the gutter, clear of the open/mute toggle */
+  for (let i = 0; i < 6; i++) {
     const nm = pcName(om[i]);
     const lit = state.fingering[i] === state.capo;
     const role = lit ? roleAt(om[i], res) : null;
     const lc = lit ? (role ? ROLE_COLOR[role] : "var(--tx-1)") : "var(--tx-4)";
     const lw = lit ? ' font-weight="700"' : "";
-    s += g.v
-      ? `<text x="${g.sx(i)}" y="14" font-size="10" fill="${lc}"${lw} text-anchor="middle">${nm}</text>`
-      : `<text x="14" y="${g.sy(i) + 4}" font-size="10" fill="${lc}"${lw} text-anchor="middle">${nm}</text>`;
+    const cx = g.v ? g.sx(i) : g.tuneMid, cy = g.v ? g.tuneMid : g.sy(i);
+    const hw = g.v ? g.colW / 2 : 16, hh = g.v ? 12 : g.rowH / 2;
+    s += `<rect class="tunechip${tuneStr === i ? " on" : ""}" x="${cx - 16}" y="${cy - 10.5}"
+             width="32" height="21" rx="4"/>`
+       + `<text x="${cx}" y="${cy + 3.5}" font-size="10" fill="${lc}"${lw} text-anchor="middle">${nm}</text>`
+       + `<rect class="tunehit" data-tstr="${i}" role="button" tabindex="0"`
+       + ` aria-label="${6 - i}弦のチューニング ${noteLabel(state.tuning[i])}"`
+       + ` x="${cx - hw}" y="${cy - hh}" width="${hw * 2}" height="${hh * 2}"/>`;
   }
 
   /* greyed-out region behind the capo */
@@ -960,6 +983,7 @@ function renderBoard() {
 
   s += `</svg>`;
   box.innerHTML = s;
+  if (tuneStr !== null) renderTunePop();   // the chip it was anchored to is a new node
 }
 
 /* ---------- results (section 5-3 / 5-4) ---------- */
@@ -1242,7 +1266,7 @@ function buildTuningUI() {
   syncTuneSel();
   $("capoSel").innerHTML = Array.from({length:13}, (_,i) => `<option value="${i}">${i===0?"なし":i+"F"}</option>`).join("");
   $("capoSel").value = String(state.capo);
-  renderTuneRow();
+  renderTuneNow();
 }
 /* the select always names the tuning actually in effect, so dialling a string
    back to a preset shows that preset's name again instead of staying "custom" */
@@ -1250,32 +1274,81 @@ function syncTuneSel() {
   const match = TUNINGS.findIndex(t => t.midi.join() === state.tuning.join());
   $("tuneSel").value = match >= 0 ? String(match) : "custom";
 }
-function setTunePanel(show) {
-  $("tunePanel").style.display = show ? "" : "none";
-  $("tuneToggle").classList.toggle("on", show);
-  $("tuneToggle").setAttribute("aria-expanded", String(show));
-  if (!show) syncTuneSel();
-}
 const noteLabel = (m) => pcName(m) + (Math.floor(m / 12) - 1);
-/* the panel edits the tuning itself, so it shows the capo-free pitch; the capo'd
-   sounding pitch is what the fretboard already draws, and is shown after the arrow */
-function renderTuneRow() {
-  const capo = state.capo;
-  $("tuneRow").innerHTML = state.tuning.map((m, i) => {
-    const s = 6 - i;
-    return `<div class="tuner"><span class="lb">${s}弦</span>
-       <button data-tune="${i}" data-d="-1" aria-label="${s}弦を半音下げる"${m <= TUNE_MIN ? " disabled" : ""}>−</button>
-       <span class="val"><b>${noteLabel(m)}</b>${capo ? `<span class="snd">→${noteLabel(m + capo)}</span>` : ""}</span>
-       <button data-tune="${i}" data-d="1" aria-label="${s}弦を半音上げる"${m >= TUNE_MAX ? " disabled" : ""}>+</button></div>`;
-  }).join("");
-  $("tuneHint").textContent = capo ? `→ の右はカポ${capo}Fを含む実音です。` : "";
-  renderTuneNow();
+
+/* ---------- nut tuning popover ---------- */
+function openTunePop(i, focus) {
+  const box = $("boardBox");
+  if (geom().v) box.scrollTop = 0; else box.scrollLeft = 0;   // bring the nut into view
+  tuneStr = i;
+  renderBoard();                            // repaint so the chip reads as selected
+  if (focus) $("tunePop").focus();
+}
+function closeTunePop(focus) {
+  if (tuneStr === null) return;
+  tuneStr = null;
+  $("tunePop").hidden = true;
+  $("tuneToggle").classList.remove("on");
+  $("tuneToggle").setAttribute("aria-expanded", "false");
+  renderBoard();
+  if (focus) $("tuneToggle").focus();
+}
+/* the popover edits the tuning itself, so it shows the capo-free pitch; the capo'd
+   sounding pitch is what the fretboard already draws, and follows the arrow */
+function renderTunePop() {
+  const i = tuneStr, m = state.tuning[i];
+  $("tpStr").textContent = (6 - i) + "弦";
+  $("tpNote").textContent = noteLabel(m);
+  $("tpSnd").textContent = state.capo ? "→" + noteLabel(m + state.capo) : "";
+  $("tpDown").disabled = m <= TUNE_MIN;
+  $("tpUp").disabled = m >= TUNE_MAX;
+  $("tunePop").hidden = false;
+  $("tuneToggle").classList.add("on");
+  $("tuneToggle").setAttribute("aria-expanded", "true");
+  positionTunePop();
+}
+/* the board is one SVG rebuilt on every edit, so the popover is an HTML overlay
+   re-anchored from the live chip rather than something drawn inside the SVG */
+function positionTunePop() {
+  const pop = $("tunePop"), box = $("boardBox");
+  const anchor = box.querySelector(`[data-tstr="${tuneStr}"]`);
+  if (!anchor) return;
+  const sr = pop.parentElement.getBoundingClientRect();
+  const ar = anchor.getBoundingClientRect(), br = box.getBoundingClientRect();
+  // scrolled past the nut: there is nothing left to point at
+  if (ar.right < br.left || ar.left > br.right || ar.bottom < br.top || ar.top > br.bottom) {
+    closeTunePop(); return;
+  }
+  const pw = pop.offsetWidth, ph = pop.offsetHeight, g = geom();
+  // the nut runs across the top when the neck is vertical, down the left when it is not.
+  // vertically it clears the whole nut, so the open/mute marks stay readable while tuning
+  const gap = g.v ? g.nutY - g.tuneMid - 4 : 8;
+  const left = g.v ? ar.left + ar.width / 2 - sr.left - pw / 2 : ar.right - sr.left + gap;
+  const top  = g.v ? ar.bottom - sr.top + gap : ar.top + ar.height / 2 - sr.top - ph / 2;
+  pop.style.left = Math.max(0, Math.min(left, sr.width - pw)) + "px";
+  pop.style.top  = Math.max(0, Math.min(top, sr.height - ph)) + "px";
+}
+function stepTuning(i, d) {
+  const nv = state.tuning[i] + d;
+  if (nv < TUNE_MIN || nv > TUNE_MAX) return;
+  state.tuning[i] = nv;
+  syncTuneSel(); renderTuneNow(); vCacheKey = ""; runSearch(); refresh();
 }
 function renderTuneNow() {
   $("tuneNow").textContent = state.tuning.map(pcName).join(" ");
 }
 
 document.addEventListener("click", (e) => {
+  const tuneHit = e.target.closest("[data-tstr]");
+  // popover dismissal has to run before the early returns below, so that a tap on
+  // a fret closes it the way a tap anywhere else does
+  if (tuneStr !== null && !tuneHit && !e.target.closest("#tunePop, #tuneToggle, #tuneSel"))
+    closeTunePop();
+  if (tuneHit) {
+    const i = +tuneHit.dataset.tstr;
+    if (i === tuneStr) closeTunePop(); else openTunePop(i);
+    return;
+  }
   const hit = e.target.closest(".hit");
   if (hit) {
     const s = +hit.dataset.s, fRaw = hit.dataset.f;
@@ -1299,35 +1372,27 @@ document.addEventListener("click", (e) => {
   if (card) { applyVoicing(card.dataset.v); return; }
   const sg = e.target.closest("#sug button");
   if (sg) { state.query = sg.dataset.n; $("q").value = state.query; hideSug(); runSearch(); return; }
-  const tb = e.target.closest("[data-tune]");
-  if (tb) {
-    const i = +tb.dataset.tune, d = +tb.dataset.d, nv = state.tuning[i] + d;
-    if (nv >= TUNE_MIN && nv <= TUNE_MAX) {
-      state.tuning[i] = nv; syncTuneSel(); renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
-    }
-    return;
-  }
   if (!e.target.closest(".sugWrap")) hideSug();
 });
 
 $("tuneSel").addEventListener("change", (e) => {
   const v = e.target.value;
   // "custom" is not a tuning but a way in: keep the current one and open the editor
-  if (v === "custom") { setTunePanel(true); return; }
+  if (v === "custom") { openTunePop(0, true); return; }
   state.tuning = TUNINGS[+v].midi.slice();
-  renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
+  renderTuneNow(); vCacheKey = ""; runSearch(); refresh();
 });
 $("capoSel").addEventListener("change", (e) => {
   state.capo = +e.target.value; clampToCapo(); state.fingerMap = null;
-  renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
+  renderTuneNow(); vCacheKey = ""; runSearch(); refresh();
 });
 $("accSharp").addEventListener("click", () => {
   state.useFlat = false; $("accSharp").classList.add("on"); $("accFlat").classList.remove("on");
-  renderTuneRow(); refresh();
+  renderTuneNow(); refresh();
 });
 $("accFlat").addEventListener("click", () => {
   state.useFlat = true; $("accFlat").classList.add("on"); $("accSharp").classList.remove("on");
-  renderTuneRow(); refresh();
+  renderTuneNow(); refresh();
 });
 $("namesBtn").addEventListener("click", () => {
   state.showNames = !state.showNames;
@@ -1345,7 +1410,27 @@ $("clearBtn").addEventListener("click", () => {
   state.fingering = [null,null,null,null,null,null]; state.fingerMap = null; refresh();
 });
 $("tuneToggle").addEventListener("click", () => {
-  setTunePanel($("tunePanel").style.display === "none");
+  if (tuneStr !== null) closeTunePop(); else openTunePop(0, true);
+});
+$("tpDown").addEventListener("click", () => stepTuning(tuneStr, -1));
+$("tpUp").addEventListener("click", () => stepTuning(tuneStr, 1));
+$("tpClose").addEventListener("click", () => closeTunePop(true));
+$("boardBox").addEventListener("scroll", () => {
+  if (tuneStr !== null) positionTunePop();
+}, { passive: true });
+/* the chips are SVG rects, so keyboard support is wired by hand: they are
+   focusable, and the popover takes arrows once it is open */
+document.addEventListener("keydown", (e) => {
+  const th = e.target.closest && e.target.closest("[data-tstr]");
+  if (th && (e.key === "Enter" || e.key === " ")) {
+    e.preventDefault(); openTunePop(+th.dataset.tstr, true); return;
+  }
+  if (tuneStr === null) return;
+  if (e.key === "Escape") { e.preventDefault(); closeTunePop(true); return; }
+  if (!(e.target.closest && e.target.closest("#tunePop"))) return;
+  if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+    e.preventDefault(); stepTuning(tuneStr, e.key === "ArrowUp" ? 1 : -1);
+  }
 });
 
 $("q").addEventListener("input", (e) => { state.query = e.target.value; sugSel = -1; renderSug(); runSearch(); });
