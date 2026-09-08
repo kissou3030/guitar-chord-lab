@@ -151,12 +151,24 @@ button{
 .tunerow{display:flex;gap:var(--s2);flex-wrap:wrap}
 .tuner{display:inline-flex;align-items:center;gap:var(--s1);
        border:1px solid var(--line);border-radius:var(--r);
-       background:var(--surface);padding:3px 6px}
+       background:var(--surface);padding:0 var(--s2)}
 .tuner span{font-size:10px;color:var(--tx-4)}
+.tuner .lb{min-width:2.4em}
+.tuner .val{display:inline-flex;align-items:baseline;gap:3px;justify-content:center}
 .tuner b{font-size:12px;font-weight:500;color:var(--tx-1);min-width:30px;text-align:center;
          font-variant-numeric:tabular-nums}
-.tuner button{padding:0 6px;font-size:14px;color:var(--tx-4);line-height:1.5}
+.tuner .snd{font-style:normal;font-variant-numeric:tabular-nums}
+/* 44px minimum touch target; the glyph stays visually light */
+.tuner button{min-width:44px;min-height:44px;padding:0;
+              font-size:15px;color:var(--tx-4);line-height:1}
 .tuner button:hover{color:var(--tx-1)}
+.tuner button:disabled{opacity:.3;cursor:default}
+.tuner button:disabled:hover{color:var(--tx-4)}
+.tunehint{margin:var(--s2) 0 0;font-size:11px;color:var(--tx-4);line-height:1.7}
+.tunehint:empty{display:none}
+/* the current tuning, readable without opening anything */
+.tunenow{font-size:11px;color:var(--tx-3);letter-spacing:.06em;
+         font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:calc(var(--s4) * -1 + var(--s2))}
 
 /* ---- fretboard ------------------------------------------------------- */
 .board-sec{margin-top:var(--s6)}
@@ -280,6 +292,10 @@ input[type=range]::-moz-range-thumb{
   .sec{padding-top:var(--s6);margin-top:var(--s6)}
   .ctlrow{gap:var(--s3)}
   .ctlrow.sub{gap:var(--s4)}
+  /* one string per row: the chips do not fit side by side at 44px targets */
+  .tunerow{flex-direction:column;gap:var(--s1)}
+  .tuner{width:100%}
+  .tuner .val{flex:1}
   .res .lab{min-width:92px;font-size:14px}
   .res.top .lab{font-size:20px}
   #cards{grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:var(--s2)}
@@ -319,6 +335,7 @@ input[type=range]::-moz-range-thumb{
   <section>
     <div class="ctlrow">
       <label class="field"><span>チューニング</span><select id="tuneSel"></select></label>
+      <span class="tunenow" id="tuneNow"></span>
       <label class="field"><span>カポ</span><select id="capoSel"></select></label>
       <div class="field">
         <span>表記</span>
@@ -332,7 +349,7 @@ input[type=range]::-moz-range-thumb{
 
     <div class="ctlrow sub">
       <button id="namesBtn" class="link on" type="button">音名を表示</button>
-      <button id="tuneToggle" class="link" type="button">弦別チューニング</button>
+      <button id="tuneToggle" class="link" type="button" aria-expanded="false" aria-controls="tunePanel">弦別チューニング</button>
       <div class="seg">
         <button id="strumBtn" class="on" type="button">ストラム</button><button id="blockBtn" type="button">同時</button>
       </div>
@@ -342,6 +359,7 @@ input[type=range]::-moz-range-thumb{
 
     <div id="tunePanel" style="display:none">
       <div class="tunerow" id="tuneRow"></div>
+      <p class="tunehint" id="tuneHint"></p>
     </div>
   </section>
 
@@ -709,6 +727,7 @@ const TUNINGS = [
   { name: "Half step down",  midi: [40,45,50,55,59,64].map(x => x - 1) },
   { name: "Whole step down", midi: [40,45,50,55,59,64].map(x => x - 2) },
 ];
+const TUNE_MIN = 24, TUNE_MAX = 88;  // per-string tuning range, in MIDI note numbers
 const NF = 15;                       // frets drawn
 const ROLE_COLOR = {
   root:"var(--c-root)", third:"var(--c-third)", sus:"var(--c-sus)",
@@ -1219,20 +1238,41 @@ function refresh() {
 function buildTuningUI() {
   const sel = $("tuneSel");
   sel.innerHTML = TUNINGS.map((t, i) => `<option value="${i}">${t.name}</option>`).join("")
-                + `<option value="custom">Custom</option>`;
-  const match = TUNINGS.findIndex(t => t.midi.join() === state.tuning.join());
-  sel.value = match >= 0 ? String(match) : "custom";
+                + `<option value="custom">カスタム…</option>`;
+  syncTuneSel();
   $("capoSel").innerHTML = Array.from({length:13}, (_,i) => `<option value="${i}">${i===0?"なし":i+"F"}</option>`).join("");
   $("capoSel").value = String(state.capo);
   renderTuneRow();
 }
+/* the select always names the tuning actually in effect, so dialling a string
+   back to a preset shows that preset's name again instead of staying "custom" */
+function syncTuneSel() {
+  const match = TUNINGS.findIndex(t => t.midi.join() === state.tuning.join());
+  $("tuneSel").value = match >= 0 ? String(match) : "custom";
+}
+function setTunePanel(show) {
+  $("tunePanel").style.display = show ? "" : "none";
+  $("tuneToggle").classList.toggle("on", show);
+  $("tuneToggle").setAttribute("aria-expanded", String(show));
+  if (!show) syncTuneSel();
+}
+const noteLabel = (m) => pcName(m) + (Math.floor(m / 12) - 1);
+/* the panel edits the tuning itself, so it shows the capo-free pitch; the capo'd
+   sounding pitch is what the fretboard already draws, and is shown after the arrow */
 function renderTuneRow() {
-  const om = openMidiArr();
-  $("tuneRow").innerHTML = state.tuning.map((m, i) =>
-    `<div class="tuner"><span>${6 - i}弦</span>
-       <button data-tune="${i}" data-d="-1">−</button>
-       <b>${pcName(om[i])}${Math.floor(om[i] / 12) - 1}</b>
-       <button data-tune="${i}" data-d="1">+</button></div>`).join("");
+  const capo = state.capo;
+  $("tuneRow").innerHTML = state.tuning.map((m, i) => {
+    const s = 6 - i;
+    return `<div class="tuner"><span class="lb">${s}弦</span>
+       <button data-tune="${i}" data-d="-1" aria-label="${s}弦を半音下げる"${m <= TUNE_MIN ? " disabled" : ""}>−</button>
+       <span class="val"><b>${noteLabel(m)}</b>${capo ? `<span class="snd">→${noteLabel(m + capo)}</span>` : ""}</span>
+       <button data-tune="${i}" data-d="1" aria-label="${s}弦を半音上げる"${m >= TUNE_MAX ? " disabled" : ""}>+</button></div>`;
+  }).join("");
+  $("tuneHint").textContent = capo ? `→ の右はカポ${capo}Fを含む実音です。` : "";
+  renderTuneNow();
+}
+function renderTuneNow() {
+  $("tuneNow").textContent = state.tuning.map(pcName).join(" ");
 }
 
 document.addEventListener("click", (e) => {
@@ -1262,7 +1302,9 @@ document.addEventListener("click", (e) => {
   const tb = e.target.closest("[data-tune]");
   if (tb) {
     const i = +tb.dataset.tune, d = +tb.dataset.d, nv = state.tuning[i] + d;
-    if (nv >= 24 && nv <= 88) { state.tuning[i] = nv; $("tuneSel").value = "custom"; renderTuneRow(); vCacheKey = ""; runSearch(); refresh(); }
+    if (nv >= TUNE_MIN && nv <= TUNE_MAX) {
+      state.tuning[i] = nv; syncTuneSel(); renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
+    }
     return;
   }
   if (!e.target.closest(".sugWrap")) hideSug();
@@ -1270,7 +1312,8 @@ document.addEventListener("click", (e) => {
 
 $("tuneSel").addEventListener("change", (e) => {
   const v = e.target.value;
-  if (v === "custom") return;
+  // "custom" is not a tuning but a way in: keep the current one and open the editor
+  if (v === "custom") { setTunePanel(true); return; }
   state.tuning = TUNINGS[+v].midi.slice();
   renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
 });
@@ -1279,10 +1322,12 @@ $("capoSel").addEventListener("change", (e) => {
   renderTuneRow(); vCacheKey = ""; runSearch(); refresh();
 });
 $("accSharp").addEventListener("click", () => {
-  state.useFlat = false; $("accSharp").classList.add("on"); $("accFlat").classList.remove("on"); refresh();
+  state.useFlat = false; $("accSharp").classList.add("on"); $("accFlat").classList.remove("on");
+  renderTuneRow(); refresh();
 });
 $("accFlat").addEventListener("click", () => {
-  state.useFlat = true; $("accFlat").classList.add("on"); $("accSharp").classList.remove("on"); refresh();
+  state.useFlat = true; $("accFlat").classList.add("on"); $("accSharp").classList.remove("on");
+  renderTuneRow(); refresh();
 });
 $("namesBtn").addEventListener("click", () => {
   state.showNames = !state.showNames;
@@ -1300,10 +1345,7 @@ $("clearBtn").addEventListener("click", () => {
   state.fingering = [null,null,null,null,null,null]; state.fingerMap = null; refresh();
 });
 $("tuneToggle").addEventListener("click", () => {
-  const p = $("tunePanel");
-  const show = p.style.display === "none";
-  p.style.display = show ? "" : "none";
-  $("tuneToggle").classList.toggle("on", show);
+  setTunePanel($("tunePanel").style.display === "none");
 });
 
 $("q").addEventListener("input", (e) => { state.query = e.target.value; sugSel = -1; renderSug(); runSearch(); });
