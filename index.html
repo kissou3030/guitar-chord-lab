@@ -139,6 +139,20 @@ button{
 
 :focus-visible{outline:1px solid var(--accent);outline-offset:2px;border-radius:3px}
 
+/* ---- tabs ------------------------------------------------------------
+   the two ways in. both labels stay visible at all times; only the panel
+   below them switches, so neither feature can become invisible. */
+/* pinned: crossing over and back must not cost a scroll to the top of the page */
+.tabs{display:flex;gap:var(--s5);border-bottom:1px solid var(--line);margin-bottom:var(--s5);
+      position:sticky;top:0;z-index:10;background:var(--bg)}
+.tab{font-size:13px;color:var(--tx-3);padding:var(--s2) 2px;margin-bottom:-1px;
+     border:0;border-bottom:2px solid transparent;border-radius:0}
+.tab:hover{color:var(--tx-1)}
+.tab.on{color:var(--tx-1);border-bottom-color:var(--accent)}
+/* the instrument row is ONE node, moved into whichever panel is showing */
+#instRow{margin-bottom:var(--s4)}
+.instSlot:empty{display:none}
+
 /* ---- control rows ---------------------------------------------------- */
 .ctlrow{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap}
 .ctlrow + .ctlrow{margin-top:var(--s4)}
@@ -241,10 +255,6 @@ button{
 #qJump{font-size:12px;color:var(--accent);white-space:nowrap;padding:4px 6px}
 #qJump:hover{color:var(--accent)}
 #qJump:disabled{color:var(--tx-4);cursor:default}
-/* the input is a screenful up now, so the heading says what was searched and goes back */
-.backlink{font-size:12px;font-weight:400;color:var(--tx-4);letter-spacing:.04em;
-          background:transparent;border:0;padding:0 2px}
-.backlink:hover{color:var(--accent)}
 
 .filters{display:flex;gap:var(--s5);flex-wrap:wrap;align-items:center;margin-top:var(--s5)}
 .filters .field > span{font-size:11px}
@@ -351,92 +361,111 @@ input[type=range]::-moz-range-thumb{
 
 <main class="shell">
 
-  <section>
-    <div class="ctlrow find">
-      <label class="field"><span>コード名で探す</span>
-        <span class="sugWrap">
-          <input type="text" id="q" placeholder="Cm7、F#7#9、Bbmaj9 …" autocomplete="off" autocapitalize="off" spellcheck="false">
-          <div id="sug" style="display:none"></div>
-        </span>
-      </label>
-      <button id="qJump" class="link" type="button" hidden></button>
-      <span id="qerr" style="display:none"></span>
-    </div>
+  <div class="tabs" role="tablist" aria-label="機能">
+    <button id="tabBoard" class="tab on" type="button" role="tab"
+            aria-selected="true" aria-controls="paneBoard">指板から調べる</button>
+    <button id="tabFind" class="tab" type="button" role="tab"
+            aria-selected="false" aria-controls="paneFind">コード名から探す</button>
+  </div>
 
-    <div class="ctlrow">
-      <label class="field"><span>チューニング</span><select id="tuneSel"></select></label>
-      <span class="tunenow" id="tuneNow"></span>
-      <label class="field"><span>カポ</span><select id="capoSel"></select></label>
-      <div class="field">
-        <span>表記</span>
-        <div class="seg">
-          <button id="accSharp" class="on" type="button">&#9839;</button><button id="accFlat" type="button">&#9837;</button>
-        </div>
-      </div>
-      <div class="spacer"></div>
-      <button id="playBtn" class="primary" type="button">再生</button>
-    </div>
-
-    <div class="ctlrow sub">
-      <button id="namesBtn" class="link on" type="button">音名を表示</button>
-      <button id="tuneToggle" class="link" type="button" aria-expanded="false" aria-controls="tunePop">弦別チューニング</button>
+  <!-- the instrument itself. both tabs need it (voicings are generated for the
+       current tuning), so this single row is MOVED between the panels rather
+       than duplicated: one node, no drift, no repeated ids. -->
+  <div class="ctlrow" id="instRow">
+    <label class="field"><span>チューニング</span><select id="tuneSel"></select></label>
+    <span class="tunenow" id="tuneNow"></span>
+    <label class="field"><span>カポ</span><select id="capoSel"></select></label>
+    <div class="field">
+      <span>表記</span>
       <div class="seg">
-        <button id="strumBtn" class="on" type="button">ストラム</button><button id="blockBtn" type="button">同時</button>
+        <button id="accSharp" class="on" type="button">&#9839;</button><button id="accFlat" type="button">&#9837;</button>
       </div>
-      <div class="spacer"></div>
-      <button id="clearBtn" class="link" type="button">すべて外す</button>
     </div>
-  </section>
+  </div>
 
-  <section class="board-sec">
-    <div id="boardBox"><svg id="board"></svg></div>
-    <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
-      <div class="tp-main">
-        <span class="tp-str" id="tpStr"></span>
-        <button id="tpDown" type="button" aria-label="半音下げる">−</button>
-        <span class="tp-val"><b id="tpNote"></b><span class="tp-snd" id="tpSnd"></span></span>
-        <button id="tpUp" type="button" aria-label="半音上げる">+</button>
-        <button id="tpClose" class="tp-x" type="button" aria-label="閉じる">×</button>
+  <div id="paneBoard" role="tabpanel" aria-labelledby="tabBoard">
+    <div class="instSlot" id="slotBoard"></div>
+
+    <section>
+      <div class="ctlrow sub">
+        <button id="namesBtn" class="link on" type="button">音名を表示</button>
+        <button id="tuneToggle" class="link" type="button" aria-expanded="false" aria-controls="tunePop">弦別チューニング</button>
+        <div class="seg">
+          <button id="strumBtn" class="on" type="button">ストラム</button><button id="blockBtn" type="button">同時</button>
+        </div>
+        <div class="spacer"></div>
+        <button id="clearBtn" class="link" type="button">すべて外す</button>
+        <button id="playBtn" class="primary" type="button">再生</button>
       </div>
-      <p class="tp-hint">他の弦もナットの音名をタップ</p>
-    </div>
-  </section>
+    </section>
 
-  <section class="sec">
-    <h2 class="seclabel">判定結果 <span class="readout" id="noteReadout"></span></h2>
-    <div id="results"></div>
-    <div class="legend">
-      <span><i style="background:var(--c-root)"></i>Root</span>
-      <span><i style="background:var(--c-third)"></i>3rd</span>
-      <span><i style="background:var(--c-sus)"></i>sus</span>
-      <span><i style="background:var(--c-fifth)"></i>5th</span>
-      <span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
-      <span><i style="background:var(--c-tension)"></i>tension</span>
-    </div>
-  </section>
-
-  <section class="sec" id="findSec">
-    <h2 class="seclabel">押さえ方 <button id="findBack" class="backlink" type="button" hidden></button></h2>
-
-    <div class="filters">
-      <div class="field">
-        <span>ポジション</span>
-        <input type="range" id="posMin" min="0" max="15" value="0">
-        <span id="posLab">0–12F</span>
-        <input type="range" id="posMax" min="0" max="15" value="12">
+    <section class="board-sec">
+      <div id="boardBox"><svg id="board"></svg></div>
+      <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
+        <div class="tp-main">
+          <span class="tp-str" id="tpStr"></span>
+          <button id="tpDown" type="button" aria-label="半音下げる">−</button>
+          <span class="tp-val"><b id="tpNote"></b><span class="tp-snd" id="tpSnd"></span></span>
+          <button id="tpUp" type="button" aria-label="半音上げる">+</button>
+          <button id="tpClose" class="tp-x" type="button" aria-label="閉じる">×</button>
+        </div>
+        <p class="tp-hint">他の弦もナットの音名をタップ</p>
       </div>
-      <label class="field"><span>最低弦数</span>
-        <select id="minStr"><option value="3">3+</option><option value="4" selected>4+</option><option value="5">5+</option><option value="6">6</option></select>
-      </label>
-      <label class="field"><span>並び</span>
-        <select id="sortBy"><option value="diff">押さえやすさ順</option><option value="pos">ポジション順</option></select>
-      </label>
-      <label class="chk"><input type="checkbox" id="rootBass"> ルートが最低音のみ</label>
-    </div>
+    </section>
 
-    <div id="cards"></div>
-    <div id="cardsMsg"></div>
-  </section>
+    <section class="sec">
+      <h2 class="seclabel">判定結果 <span class="readout" id="noteReadout"></span></h2>
+      <div id="results"></div>
+      <div class="legend">
+        <span><i style="background:var(--c-root)"></i>Root</span>
+        <span><i style="background:var(--c-third)"></i>3rd</span>
+        <span><i style="background:var(--c-sus)"></i>sus</span>
+        <span><i style="background:var(--c-fifth)"></i>5th</span>
+        <span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
+        <span><i style="background:var(--c-tension)"></i>tension</span>
+      </div>
+    </section>
+  </div>
+
+  <div id="paneFind" role="tabpanel" aria-labelledby="tabFind" hidden>
+    <div class="instSlot" id="slotFind"></div>
+
+    <section>
+      <div class="ctlrow find">
+        <label class="field"><span>コード名</span>
+          <span class="sugWrap">
+            <input type="text" id="q" placeholder="Cm7、F#7#9、Bbmaj9 …" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <div id="sug" style="display:none"></div>
+          </span>
+        </label>
+        <button id="qJump" class="link" type="button" hidden></button>
+        <span id="qerr" style="display:none"></span>
+      </div>
+    </section>
+
+    <section class="sec" id="findSec">
+      <h2 class="seclabel">押さえ方</h2>
+
+      <div class="filters">
+        <div class="field">
+          <span>ポジション</span>
+          <input type="range" id="posMin" min="0" max="15" value="0">
+          <span id="posLab">0–12F</span>
+          <input type="range" id="posMax" min="0" max="15" value="12">
+        </div>
+        <label class="field"><span>最低弦数</span>
+          <select id="minStr"><option value="3">3+</option><option value="4" selected>4+</option><option value="5">5+</option><option value="6">6</option></select>
+        </label>
+        <label class="field"><span>並び</span>
+          <select id="sortBy"><option value="diff">押さえやすさ順</option><option value="pos">ポジション順</option></select>
+        </label>
+        <label class="chk"><input type="checkbox" id="rootBass"> ルートが最低音のみ</label>
+      </div>
+
+      <div id="cards"></div>
+      <div id="cardsMsg"></div>
+    </section>
+  </div>
 
 </main>
 
@@ -777,7 +806,10 @@ const state = {
   rootBassOnly: false,
   sortBy: "diff",
   fingerMap: null,                    // string -> finger number, only after a card is applied
+  tab: "board",                       // "board" | "find" — which panel is showing
 };
+// where the user was on each panel, so leaving and coming back is free
+const scrollMemo = { board: 0, find: 0 };
 
 const $ = (id) => document.getElementById(id);
 const names = () => state.useFlat ? NAMES_FLAT : NAMES_SHARP;
@@ -798,7 +830,8 @@ function saveURL() {
   const q = "t=" + state.tuning.join(",")
           + "&c=" + state.capo
           + "&f=" + state.fingering.map(x => x === null ? "x" : x).join(",")
-          + "&acc=" + (state.useFlat ? "flat" : "sharp");
+          + "&acc=" + (state.useFlat ? "flat" : "sharp")
+          + "&tab=" + state.tab;
   // file:// rejects replaceState in some browsers; opening index.html directly must still work
   try { history.replaceState(null, "", location.pathname + "?" + q); } catch (_) {}
 }
@@ -818,6 +851,7 @@ function loadURL() {
       state.fingering = a;
   }
   if (p.get("acc") === "flat") state.useFlat = true;
+  if (p.get("tab") === "find") state.tab = "find";
   clampToCapo();
 }
 function clampToCapo() {
@@ -1214,6 +1248,7 @@ function applyVoicing(relKey) {
   state.fingering = rel.map(x => x === null ? null : x + state.capo);
   state.fingerMap = fingerAssign(rel);
   refresh();
+  setTab("board", "top");           // tapping a card is trying it: show it on the neck
   const box = $("boardBox");
   if (box.classList.contains("vert")) {
     const fr = rel.filter(x => x !== null && x > 0);
@@ -1286,6 +1321,29 @@ function playChord() {
 }
 
 /* ---------- wiring ---------- */
+/* The two features are separate panels, not one long page: the fretboard belongs
+   to the board panel only, so a search result and an unrelated identification can
+   never sit stacked on screen. Nothing is torn down on a switch — each panel keeps
+   its state and its scroll position — so crossing over and back is cheap. */
+function setTab(t, scroll) {
+  const prev = state.tab, moved = prev !== t;
+  if (moved) scrollMemo[prev] = window.scrollY;
+  state.tab = t;
+  const onBoard = t === "board";
+  $("paneBoard").hidden = !onBoard;
+  $("paneFind").hidden = onBoard;
+  for (const [id, on] of [["tabBoard", onBoard], ["tabFind", !onBoard]]) {
+    $(id).classList.toggle("on", on);
+    $(id).setAttribute("aria-selected", String(on));
+  }
+  // one node, moved — never a second copy of the tuning controls
+  (onBoard ? $("slotBoard") : $("slotFind")).appendChild($("instRow"));
+  if (!onBoard) closeTunePop();     // it anchors to a nut that is not rendered here
+  if (onBoard) renderBoard();       // geometry needs a laid-out box to measure
+  if (moved) window.scrollTo(0, scroll === "top" ? 0 : (scrollMemo[t] || 0));
+  saveURL();
+}
+
 /* smooth by default, but honour a reduced-motion preference like the CSS does */
 function scrollToEl(el, block) {
   el.scrollIntoView({
@@ -1296,12 +1354,10 @@ function scrollToEl(el, block) {
 /* the input sits above the board and the cards a screenful below it, so the count
    is the only feedback in place that the search did anything — and the way down */
 function renderFindStatus(n) {
-  const j = $("qJump"), bk = $("findBack"), q = state.query.trim();
+  const j = $("qJump");
   j.disabled = n === "loading";
   j.hidden = !n;
   j.textContent = n === "loading" ? "探しています…" : n ? `${n}件 ↓` : "";
-  bk.hidden = !q;
-  bk.textContent = q ? `— ${q} ↑` : "";
 }
 
 function refresh() {
@@ -1412,13 +1468,14 @@ document.addEventListener("click", (e) => {
     return;
   }
   if (e.target.closest("#mini")) {          // shortcut to the full candidate list
+    setTab("board");                       // the results live on the board panel
     scrollToEl($("results"), "center");
     return;
   }
   const res = e.target.closest(".res");
   if (res) {
     state.query = res.dataset.label; $("q").value = state.query; hideSug(); runSearch();
-    scrollToEl($("findSec"));      // the cards are a screenful down: go there, or nothing visibly happened
+    setTab("find", "top");                 // a candidate tap is a search: show it
     return;
   }
   const card = e.target.closest(".card");
@@ -1426,7 +1483,6 @@ document.addEventListener("click", (e) => {
   const sg = e.target.closest("#sug button");
   if (sg) {
     state.query = sg.dataset.n; $("q").value = state.query; hideSug(); runSearch();
-    scrollToEl($("findSec"));
     return;
   }
   if (!e.target.closest(".sugWrap")) hideSug();
@@ -1435,7 +1491,7 @@ document.addEventListener("click", (e) => {
 $("tuneSel").addEventListener("change", (e) => {
   const v = e.target.value;
   // "custom" is not a tuning but a way in: keep the current one and open the editor
-  if (v === "custom") { openTunePop(0, true); return; }
+  if (v === "custom") { setTab("board"); openTunePop(0, true); return; }
   state.tuning = TUNINGS[+v].midi.slice();
   renderTuneNow(); vCacheKey = ""; runSearch(); refresh();
 });
@@ -1467,7 +1523,7 @@ $("clearBtn").addEventListener("click", () => {
   state.fingering = [null,null,null,null,null,null]; state.fingerMap = null; refresh();
 });
 $("tuneToggle").addEventListener("click", () => {
-  if (tuneStr !== null) closeTunePop(); else openTunePop(0, true);
+  if (tuneStr !== null) closeTunePop(); else { setTab("board"); openTunePop(0, true); }
 });
 $("tpDown").addEventListener("click", () => stepTuning(tuneStr, -1));
 $("tpUp").addEventListener("click", () => stepTuning(tuneStr, 1));
@@ -1497,15 +1553,13 @@ $("q").addEventListener("keydown", (e) => {
   else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); sugSel = (sugSel - 1 + items.length) % items.length; renderSug(); }
   else if (e.key === "Enter") {
     if (sugSel >= 0 && items[sugSel]) { state.query = items[sugSel].dataset.n; e.target.value = state.query; }
-    hideSug(); runSearch(); e.target.blur(); scrollToEl($("findSec"));
+    hideSug(); runSearch(); e.target.blur();
   } else if (e.key === "Escape") hideSug();
 });
 
 $("qJump").addEventListener("click", () => scrollToEl($("findSec")));
-$("findBack").addEventListener("click", () => {
-  $("q").focus({ preventScroll: true });     // focus() scrolls on its own, and not smoothly
-  scrollToEl($("q"), "center");
-});
+$("tabBoard").addEventListener("click", () => setTab("board"));
+$("tabFind").addEventListener("click", () => setTab("find"));
 $("posMin").addEventListener("input", syncPos);
 $("posMax").addEventListener("input", syncPos);
 function syncPos() {
@@ -1535,6 +1589,7 @@ if (!document.querySelector("meta[name=viewport]")) {
   requestAnimationFrame(() => renderBoard());   // re-decide once the new viewport applies
 }
 loadURL();
+setTab(state.tab);
 buildTuningUI();
 $("accSharp").classList.toggle("on", !state.useFlat);
 $("accFlat").classList.toggle("on", state.useFlat);
