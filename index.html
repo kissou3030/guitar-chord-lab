@@ -234,6 +234,7 @@ button{
    and reading it no longer means scrolling past the whole candidate list */
 .legend{display:flex;gap:var(--s4);flex-wrap:wrap;margin:0 0 var(--s2);
         font-size:11px;color:var(--tx-4);letter-spacing:.03em}
+.legend:empty{display:none}   /* nothing sounding: nothing to decode */
 .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;
           margin-right:var(--s1);vertical-align:1px}
 
@@ -402,14 +403,7 @@ input[type=range]::-moz-range-thumb{
     </section>
 
     <section class="board-sec">
-      <div class="legend">
-        <span><i style="background:var(--c-root)"></i>Root</span>
-        <span><i style="background:var(--c-third)"></i>3rd</span>
-        <span><i style="background:var(--c-sus)"></i>sus</span>
-        <span><i style="background:var(--c-fifth)"></i>5th</span>
-        <span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
-        <span><i style="background:var(--c-tension)"></i>tension</span>
-      </div>
+      <div class="legend" id="legend"></div>
       <div id="boardBox"><svg id="board"></svg></div>
       <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
         <div class="tp-main">
@@ -794,6 +788,12 @@ const ROLE_COLOR = {
   root:"var(--c-root)", third:"var(--c-third)", sus:"var(--c-sus)",
   fifth:"var(--c-fifth)", seventh:"var(--c-seventh)", tension:"var(--c-tension)",
 };
+// the key lists these in this order; "none" is the colour a non-chord tone gets
+const ROLE_LABEL = {
+  root:"Root", third:"3rd", sus:"sus", fifth:"5th",
+  seventh:"6th / 7th", tension:"tension", none:"構成音外",
+};
+const ROLE_ORDER = ["root", "third", "sus", "fifth", "seventh", "tension", "none"];
 
 const state = {
   tuning: TUNINGS[0].midi.slice(),
@@ -1363,7 +1363,19 @@ function renderFindStatus(n) {
 }
 
 function refresh() {
-  renderBoard(); renderResults(); renderCards(); saveURL();
+  renderBoard(); renderResults(); renderLegend(); renderCards(); saveURL();
+}
+
+/* The key decodes the dots that are on screen. Listing all six degrees meant most
+   entries explained a colour the board was not using — with the key now sitting
+   directly above the neck, that noise is in the way rather than out of sight. */
+function renderLegend() {
+  const res = currentResults()[0] || null;
+  const roles = new Set();
+  for (const { midi } of soundingList()) roles.add(roleAt(midi, res) || "none");
+  $("legend").innerHTML = ROLE_ORDER.filter(r => roles.has(r)).map(r =>
+    `<span><i style="background:${r === "none" ? "var(--c-none)" : ROLE_COLOR[r]}"></i>${ROLE_LABEL[r]}</span>`
+  ).join("");
 }
 
 function buildTuningUI() {
