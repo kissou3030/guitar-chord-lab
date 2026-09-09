@@ -151,7 +151,7 @@ button{
 .tab.on{color:var(--tx-1);font-weight:500;border-bottom-color:var(--accent)}
 /* the instrument row is ONE node, moved into whichever panel is showing */
 #instRow{margin-bottom:var(--s4)}
-.instSlot:empty{display:none}
+.instSlot:empty,.legendSlot:empty{display:none}
 
 /* ---- control rows ---------------------------------------------------- */
 .ctlrow{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap}
@@ -374,6 +374,10 @@ input[type=range]::-moz-range-thumb{
   <!-- the instrument itself. both tabs need it (voicings are generated for the
        current tuning), so this single row is MOVED between the panels rather
        than duplicated: one node, no drift, no repeated ids. -->
+  <!-- the colour key belongs to whichever panel is showing coloured dots: the
+       neck on one tab, the cards on the other. one node, moved, never copied. -->
+  <div class="legend" id="legend"></div>
+
   <div class="ctlrow" id="instRow">
     <label class="field"><span>チューニング</span><select id="tuneSel"></select></label>
     <span class="tunenow" id="tuneNow"></span>
@@ -403,7 +407,7 @@ input[type=range]::-moz-range-thumb{
     </section>
 
     <section class="board-sec">
-      <div class="legend" id="legend"></div>
+      <div class="legendSlot" id="slotLegendBoard"></div>
       <div id="boardBox"><svg id="board"></svg></div>
       <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
         <div class="tp-main">
@@ -458,6 +462,7 @@ input[type=range]::-moz-range-thumb{
         <label class="chk"><input type="checkbox" id="rootBass"> ルートが最低音のみ</label>
       </div>
 
+      <div class="legendSlot" id="slotLegendFind"></div>
       <div id="cards"></div>
       <div id="cardsMsg"></div>
     </section>
@@ -1122,13 +1127,15 @@ function runSearch() {
   $("cards").classList.remove("busy");
   $("cardsMsg").classList.remove("loading");
   if (!q) {
-    err.style.display = "none"; $("cards").innerHTML = ""; renderFindStatus(0);
+    err.style.display = "none"; $("cards").innerHTML = ""; state.parsed = null;
+    renderFindStatus(0); renderLegend();
     $("cardsMsg").textContent = "コード名を入力すると押さえ方を生成します。"; return;
   }
   const r = parseChord(q);
   if (r.error) {
     err.style.display = ""; err.textContent = r.error;
-    $("cards").innerHTML = ""; $("cardsMsg").textContent = ""; renderFindStatus(0);
+    $("cards").innerHTML = ""; $("cardsMsg").textContent = ""; state.parsed = null;
+    renderFindStatus(0); renderLegend();
     return;
   }
   err.style.display = "none";
@@ -1211,7 +1218,7 @@ function cardSVG(fing, res) {
 function renderCards() {
   const r = state.parsed;
   const grid = $("cards"), msg = $("cardsMsg");
-  if (!r) { grid.innerHTML = ""; renderFindStatus(0); return; }
+  if (!r) { grid.innerHTML = ""; renderFindStatus(0); renderLegend(); return; }
   let list = vCache.filter(v =>
     v.minFret >= state.posMin && v.minFret <= state.posMax &&
     v.play.nSounding >= state.minStrings &&
@@ -1243,6 +1250,7 @@ function renderCards() {
     ? `${list.length} 件中 ${shown.length} 件を表示（${pcName(r.rootPc)}${r.type.name}${r.bassPc != null ? "/" + pcName(r.bassPc) : ""}）`
     : (vCache.length ? "この条件に合う押さえ方がありません。フィルタを緩めてください。" : "押さえられるフォームが見つかりませんでした。");
   renderFindStatus(list.length);
+  renderLegend();
 }
 
 function applyVoicing(relKey) {
@@ -1338,8 +1346,10 @@ function setTab(t, scroll) {
     $(id).classList.toggle("on", on);
     $(id).setAttribute("aria-selected", String(on));
   }
-  // one node, moved — never a second copy of the tuning controls
+  // one node each, moved — never a second copy of the controls or the key
   (onBoard ? $("slotBoard") : $("slotFind")).appendChild($("instRow"));
+  (onBoard ? $("slotLegendBoard") : $("slotLegendFind")).appendChild($("legend"));
+  renderLegend();                   // the two panels colour different things
   if (!onBoard) closeTunePop();     // it anchors to a nut that is not rendered here
   if (onBoard) renderBoard();       // geometry needs a laid-out box to measure
   if (moved) window.scrollTo(0, scroll === "top" ? 0 : (scrollMemo[t] || 0));
@@ -1363,16 +1373,24 @@ function renderFindStatus(n) {
 }
 
 function refresh() {
-  renderBoard(); renderResults(); renderLegend(); renderCards(); saveURL();
+  renderBoard(); renderResults(); renderCards(); saveURL();
 }
 
 /* The key decodes the dots that are on screen. Listing all six degrees meant most
-   entries explained a colour the board was not using — with the key now sitting
-   directly above the neck, that noise is in the way rather than out of sight. */
+   entries explained a colour that was not being used — with the key sitting next
+   to the dots, that noise is in the way rather than out of sight.
+   Both panels draw coloured dots, so both need it, and what is on screen differs:
+   the neck shows the strings that are sounding, the cards show the chord searched. */
 function renderLegend() {
-  const res = currentResults()[0] || null;
   const roles = new Set();
-  for (const { midi } of soundingList()) roles.add(roleAt(midi, res) || "none");
+  if (state.tab === "find") {
+    // no chord parsed (empty or unreadable) means no cards, so nothing to decode
+    const r = state.parsed;
+    if (r) for (const deg of r.type.intervals) roles.add(degreeRole(deg, r.type));
+  } else {
+    const res = currentResults()[0] || null;
+    for (const { midi } of soundingList()) roles.add(roleAt(midi, res) || "none");
+  }
   $("legend").innerHTML = ROLE_ORDER.filter(r => roles.has(r)).map(r =>
     `<span><i style="background:${r === "none" ? "var(--c-none)" : ROLE_COLOR[r]}"></i>${ROLE_LABEL[r]}</span>`
   ).join("");
