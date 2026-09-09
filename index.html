@@ -230,7 +230,9 @@ button{
 .conf i{display:block;height:100%;background:var(--tx-4)}
 .empty{color:var(--tx-4);font-size:12px;padding:var(--s3) 2px;line-height:1.9}
 
-.legend{display:flex;gap:var(--s4);flex-wrap:wrap;margin-top:var(--s5);
+/* the colour key sits directly above the neck: the dots it decodes are right there,
+   and reading it no longer means scrolling past the whole candidate list */
+.legend{display:flex;gap:var(--s4);flex-wrap:wrap;margin:0 0 var(--s2);
         font-size:11px;color:var(--tx-4);letter-spacing:.03em}
 .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;
           margin-right:var(--s1);vertical-align:1px}
@@ -400,6 +402,14 @@ input[type=range]::-moz-range-thumb{
     </section>
 
     <section class="board-sec">
+      <div class="legend">
+        <span><i style="background:var(--c-root)"></i>Root</span>
+        <span><i style="background:var(--c-third)"></i>3rd</span>
+        <span><i style="background:var(--c-sus)"></i>sus</span>
+        <span><i style="background:var(--c-fifth)"></i>5th</span>
+        <span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
+        <span><i style="background:var(--c-tension)"></i>tension</span>
+      </div>
       <div id="boardBox"><svg id="board"></svg></div>
       <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
         <div class="tp-main">
@@ -416,14 +426,6 @@ input[type=range]::-moz-range-thumb{
     <section class="sec">
       <h2 class="seclabel">判定結果 <span class="readout" id="noteReadout"></span></h2>
       <div id="results"></div>
-      <div class="legend">
-        <span><i style="background:var(--c-root)"></i>Root</span>
-        <span><i style="background:var(--c-third)"></i>3rd</span>
-        <span><i style="background:var(--c-sus)"></i>sus</span>
-        <span><i style="background:var(--c-fifth)"></i>5th</span>
-        <span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
-        <span><i style="background:var(--c-tension)"></i>tension</span>
-      </div>
     </section>
   </div>
 
