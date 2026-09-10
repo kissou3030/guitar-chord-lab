@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guitar Chord Lab — DESIGN</title>
+<style>
+:root{
+  /* ---- 面（Flat のスクショから実測した値） ---------------------------- */
+  --paper:#F3F7FE;      /* 地。ページの下地。灰色ではなく「青みのあるほぼ白」 */
+  --sheet:#FFFFFF;      /* 白。カード・指板・入力欄が乗る面 */
+  --well:#E0EAF9;       /* 溝。へこんだ面。非選択・空・プログレスの溝 */
+  --line:#D7E1F0;       /* 罫。面と面の境目。1px */
+  --line-soft:#E8EEF8;  /* 淡い罫。面の中の区切り */
+
+  /* ---- 文字（無彩色の灰は1つも使わない。すべて青を含む） -------------- */
+  --navy-1:#1C264C;     /* 主役。コード名、見出し、本文の芯 */
+  --navy-2:#39426B;
+  --navy-3:#4E5779;
+  --navy-4:#606782;     /* 最小のラベル。これより薄くしない */
+
+  /* ---- 青（唯一のアクセント） ----------------------------------------- */
+  --blue:#1566EE;       /* 主操作、リンク、件数、選択中のタブ */
+  --blue-deep:#0D3B8A;  /* 帯。白い文字が乗る唯一の面 */
+  --blue-soft:#D7E5FE;  /* 選択中の淡い下地。ここに青い文字は乗せない */
+
+  /* ---- 度数（データの符号化専用。UIの装飾には絶対に使わない） ---------- */
+  --c-root:#A2553C; --c-third:#41627F; --c-sus:#7E99AC;
+  --c-fifth:#8F8F88; --c-seventh:#4E7355; --c-tension:#7F6520; --c-none:#ADB3C2;
+
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:72px;
+  --r:8px; --r-lg:14px;
+  --font:"Noto Sans JP","Hiragino Sans","Yu Gothic UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--navy-2);font-family:var(--font);
+     font-size:14px;line-height:1.85;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 var(--s5)}
+
+/* ---- ナビ：濃青の帯に白。ここだけが濃い面 ---------------------------- */
+.nav{position:sticky;top:0;z-index:10;background:var(--blue-deep);color:#fff}
+.nav .wrap{display:flex;align-items:center;gap:var(--s5);flex-wrap:wrap;
+           padding-top:var(--s3);padding-bottom:var(--s3)}
+.nav b{font-size:15px;font-weight:700;letter-spacing:.06em}
+.nav a{color:#fff;text-decoration:none;font-size:12px;letter-spacing:.04em;opacity:.82}
+.nav a:hover{opacity:1}
+
+section{padding:var(--s7) 0 var(--s6);border-top:1px solid var(--line);scroll-margin-top:96px}
+section:first-of-type{border-top:0}
+.tag{display:inline-block;background:var(--blue);color:#fff;font-size:11px;font-weight:700;
+     letter-spacing:.1em;padding:4px 10px;border-radius:var(--r);margin-bottom:var(--s3)}
+h1{font-size:34px;font-weight:700;color:var(--navy-1);letter-spacing:.01em;margin:0 0 var(--s2);line-height:1.35}
+h2{font-size:26px;font-weight:700;color:var(--navy-1);margin:0 0 var(--s4);line-height:1.4}
+h3{font-size:15px;font-weight:700;color:var(--navy-1);margin:var(--s6) 0 var(--s3);letter-spacing:.02em}
+p{margin:0 0 var(--s3)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+     background:var(--well);color:var(--navy-2);padding:1px 6px;border-radius:6px}
+b{font-weight:700;color:var(--navy-1)}
+.lede{font-size:15px;color:var(--navy-3);max-width:74ch}
+.note{font-size:12px;color:var(--navy-3);line-height:1.8}
+
+/* ---- 面：白いカード。影は使わず 1px の罫だけで浮かせる ---------------- */
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s4)}
+.grid{display:grid;gap:var(--s3)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(auto-fill,minmax(178px,1fr))}
+
+/* ---- スウォッチ ------------------------------------------------------ */
+.sw{border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--sheet)}
+.sw .face{display:block;height:76px;border-bottom:1px solid var(--line)}
+.sw .body{padding:var(--s3)}
+.sw .nm{font-size:14px;font-weight:700;color:var(--navy-1)}
+.sw .var{display:inline-block;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+         background:var(--well);color:var(--navy-2);padding:1px 6px;border-radius:6px;margin:4px 0}
+.sw dl{margin:var(--s2) 0 0;font-size:12px;color:var(--navy-3);line-height:1.7}
+.sw dt{font-weight:700;color:var(--navy-4);font-size:11px;letter-spacing:.06em;margin-top:6px}
+.sw dd{margin:0}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:700;color:var(--navy-4);font-size:11px;letter-spacing:.06em;
+   padding:0 var(--s3) var(--s2) 0;border-bottom:1px solid var(--line)}
+td{padding:var(--s2) var(--s3) var(--s2) 0;border-bottom:1px solid var(--line-soft);
+   color:var(--navy-2);vertical-align:top}
+
+/* ---- 文字見本 -------------------------------------------------------- */
+.type{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);align-items:center;
+      padding:var(--s4) 0;border-bottom:1px solid var(--line-soft)}
+.spec{font-size:12px;color:var(--navy-3);line-height:1.8}
+.spec b{display:block;font-size:13px;color:var(--navy-1);font-weight:700}
+.why{display:block;margin-top:6px;color:var(--navy-4)}
+.chordname{font-family:var(--font);font-weight:700;font-size:46px;line-height:1.1;
+           color:var(--navy-1);letter-spacing:.01em}
+
+/* ---- 部品見本 -------------------------------------------------------- */
+.btn{font:inherit;font-size:13px;font-weight:700;border-radius:var(--r);padding:10px 18px;
+     border:1px solid transparent;cursor:pointer}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.second{background:var(--sheet);color:var(--navy-1);border-color:var(--line)}
+.btn.quiet{background:none;color:var(--blue);border-color:transparent;font-weight:400}
+.btn[disabled]{opacity:.4;cursor:default}
+.field{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3)}
+.field>span{font-size:11px;color:var(--navy-4);letter-spacing:.06em;font-weight:700}
+.inp{font:inherit;font-size:15px;color:var(--navy-1);background:var(--sheet);
+     border:1px solid var(--line);border-radius:var(--r);padding:9px 12px;outline:none}
+.inp:focus{border-color:var(--blue)}
+.tabs{display:flex;gap:var(--s5);border-bottom:2px solid var(--line)}
+.tab{font:inherit;font-size:15px;background:none;border:0;border-bottom:2px solid transparent;
+     margin-bottom:-2px;padding:var(--s3) 2px;color:var(--navy-3);cursor:pointer}
+.tab.on{color:var(--navy-1);font-weight:700;border-bottom-color:var(--blue)}
+.pillow{display:inline-block;font-size:11px;color:var(--navy-3);background:var(--well);
+        border-radius:6px;padding:3px 8px}
+.legend{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:12px;color:var(--navy-3)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:0}
+.state{border:1px dashed var(--line);border-radius:var(--r-lg);padding:var(--s4);
+       color:var(--navy-4);font-size:13px;text-align:center;background:var(--well)}
+.use{font-size:12px;color:var(--navy-3);margin-top:var(--s3);line-height:1.75}
+.use b{color:var(--navy-4);font-weight:700;font-size:11px;letter-spacing:.06em}
+
+.mock{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.mock .bar{background:var(--blue-deep);color:#fff;font-size:11px;letter-spacing:.06em;padding:8px var(--s3)}
+.mock .body{padding:var(--s3)}
+
+.footer{border-top:1px solid var(--line);padding:var(--s5) 0 var(--s7);
+        font-size:12px;color:var(--navy-4)}
+ul{margin:0 0 var(--s3);padding-left:1.2em}
+li{margin-bottom:6px}
+
+@media (max-width:639px){
+  .g2,.g3{grid-template-columns:1fr}
+  .type{grid-template-columns:1fr;gap:var(--s2)}
+  h1{font-size:27px} h2{font-size:22px}
+}
+</style>
+</head>
+<body>
+
+<div class="nav"><div class="wrap">
+  <b>GUITAR CHORD LAB</b>
+  <a href="#dir">方向性</a><a href="#rule">規則</a><a href="#color">色</a><a href="#type">文字</a>
+  <a href="#space">余白</a><a href="#parts">部品</a><a href="#screen">画面</a><a href="#resp">可変</a>
+  <a href="#a11y">見やすさ</a><a href="#gap">未定義</a>
+</div></div>
+
+<div class="wrap">
+
+<section id="dir">
+  <span class="tag">DIRECTION 方向性</span>
+  <h1>この道具がどうありたいか</h1>
+
+  <div class="card" style="background:var(--blue-deep);border-color:var(--blue-deep);padding:var(--s5)">
+    <div style="font-size:19px;line-height:1.9;color:#fff;font-weight:700">
+      白と青で、すっきり。ギター弾きが弾きながら一瞬で読める見やすさを土台に、
+      <span style="color:#BFD7FF">無彩色の灰を1つも使わない</span>。
+      色を持つ場所は帯・主操作・度数の点だけに決めて、それ以外は白と紺で静かに整える。
+    </div>
+    <div style="font-size:12px;color:#BFD7FF;margin-top:var(--s4);line-height:1.8">
+      参照点: Flat（楽譜アプリ）／弾きながら見るコード譜サイト／明るいまま詰まった音楽アプリ
+    </div>
+  </div>
+
+  <h3>3つの柱</h3>
+  <div class="grid g3">
+    <div class="card"><b style="font-size:15px">見やすい</b>
+      <p class="note" style="margin:var(--s2) 0 0">弾きながら視線を落として一瞬で読める。小さい灰色の文字で埋めない。本文と数値は AA を満たす。主役は大きく、脇役は小さく退く。</p></div>
+    <div class="card"><b style="font-size:15px">白と青</b>
+      <p class="note" style="margin:var(--s2) 0 0">地はほぼ白、面は白。濃い面は帯だけ。青は<b>1色</b>で、決まった場所にしか出ない。淡い青を面積で塗り広げない。</p></div>
+    <div class="card"><b style="font-size:15px">灰を殺す</b>
+      <p class="note" style="margin:var(--s2) 0 0">黒も灰もすべて紺を含ませる。<code>#9A9A9A</code> のような無彩色を1つも残さない。<b>ここが効く。</b></p></div>
+  </div>
+
+  <h3>いま何が問題だったか（実測）</h3>
+  <table>
+    <tr><th>計測</th><th>現状</th><th>この仕様書で目指すもの</th></tr>
+    <tr><td>文字色</td><td>180要素中 <b>144が灰色</b></td><td>主役は <code>--navy-1</code>。灰（紺の薄い段）は脇役だけ</td></tr>
+    <tr><td>灰色の質</td><td><code>#9A9A9A</code> 系の<b>無彩色</b></td><td><b>青を含む紺の4段に置き換える。</b>無彩色を1つも残さない</td></tr>
+    <tr><td>文字サイズ</td><td>10px以下が <b>116要素</b>、17px以上が <b>2要素</b></td><td>役割ごとに段差をつける。最小でも 11px かつ AA</td></tr>
+    <tr><td>文字の太さ</td><td>400 と 500 だけ</td><td><b>700 を見出しに解禁する。</b>太さの差が無いことが平坦さの正体だった</td></tr>
+    <tr><td>色のある要素</td><td><b>3要素</b></td><td>帯・主操作・度数の点。<b>場所を決めて、そこだけ強く出す</b></td></tr>
+    <tr><td>指板</td><td>1px の灰色の格子</td><td>白い面＋紺の罫。色が乗るのは点だけ。この道具の主役</td></tr>
+  </table>
+
+  <h3>なぜ白と青にしたか</h3>
+  <p class="note">先にくすんだ陶器色の案を作って<b>捨てた</b>。淡い色を面積で塗ると、狙った「味」ではなく「ぼんやり」になる。
+  参照した Flat から実測して分かったのは、<b>あのすっきりが青のおかげではない</b>ということだった。効いているのは4つで、どれも色相の話ではない。</p>
+  <table>
+    <tr><th>効いているもの</th><th>実測</th></tr>
+    <tr><td>無彩色が1つも無い</td><td>文字 <code>#1C264C</code> は黒ではなく紺。副文 <code>#606782</code> は灰ではなく青灰</td></tr>
+    <tr><td>地に色がついている</td><td>地 <code>#F3F7FE</code> は白ではなく<b>青みのほぼ白</b>。その上に純白のカードが乗る</td></tr>
+    <tr><td>青は薄めない</td><td><code>#1566EE</code>。淡い青は<b>下地にしか使わず、文字や線には使わない</b></td></tr>
+    <tr><td>太さの差が大きい</td><td>見出しは 700。本文との差が形で分かる</td></tr>
+  </table>
+  <p class="note"><b>AI が作ったように見える原因は「淡い・無彩色・全部同じ太さ」であって、色相ではない。</b>
+  だから陶器をやめて白と青にしても、守る規律は同じものになる。</p>
+</section>
+
+<section id="rule">
+  <span class="tag">AGENT RULES 実装前に読む</span>
+  <h2>UIを作る・変える前に</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3 style="margin-top:0">必ず守る</h3>
+      <ul>
+        <li>色・文字・余白・角丸・境界は <b>既存のCSS変数から選ぶ</b>。生の値を新しく書かない</li>
+        <li><b>無彩色を書かない。</b><code>#888</code> <code>gray</code> <code>#333</code> は禁止。灰が要るなら <code>--navy-3</code> / <code>--navy-4</code></li>
+        <li><b>度数の色（<code>--c-*</code>）はデータ専用。</b>UIの装飾に絶対に使わない</li>
+        <li><b>逆も禁止。青（<code>--blue</code>）を、度数の点が出る面の中に持ち込まない。</b>指板とカードの中に青いUIを置かない</li>
+        <li><b>ぼかし影を使わない。</b>白い面は 1px の罫で浮かせる</li>
+        <li>主操作＝青の塗り／補助＝白に罫／静かな操作＝青の文字。<b>3つを混ぜない</b></li>
+        <li>空・1件・大量・エラー・読み込み中を必ず設計する</li>
+        <li>デザインを変えたら この <code>DESIGN.html</code> も同じコミットで更新する</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">重要度の付け方</h3>
+      <p class="note">この順で強くする。<b>色は最後の手段。</b></p>
+      <ol class="note" style="padding-left:1.4em">
+        <li>文字の大きさ</li>
+        <li><b>文字の太さ（400 → 700）</b></li>
+        <li>文字の濃さ（<code>--navy-1</code> 〜 <code>--navy-4</code>）</li>
+        <li>余白（近づける／離す）</li>
+        <li>面を変える（地 → 白 → 溝）</li>
+        <li>罫を足す</li>
+        <li>青を使う</li>
+      </ol>
+      <h3>憲法の改訂が要る変更</h3>
+      <p class="note">この仕様書は現行 <code>CLAUDE.md</code> と<b>3点で食い違う</b>。黙って寄せず、先に改訂すること。</p>
+      <ul class="note">
+        <li>§3「太さは 400 と 500 だけ」→ <b>見出しに 700 を解禁</b></li>
+        <li>§3「角丸は <code>--r</code>(6px)」→ <b>8px と 14px の2段</b></li>
+        <li>§3「文字サイズの表」→ <b>46px / 26px / 22px を追加、10px と 7px を廃止</b></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="color">
+  <span class="tag">COLOR 色</span>
+  <h2>面・紺・青の3つしかない</h2>
+  <p class="lede">色は<b>役割で命名する</b>。<code>blue-500</code> のような抽象名は使わない。
+  名前を見た時点で「どこに置ける色か」が決まっているようにするため。</p>
+
+  <h3>面（実測値をそのまま使う）</h3>
+  <div class="grid g4">
+    <div class="sw"><div class="face" style="background:#F3F7FE"></div><div class="body">
+      <div class="nm">地 paper</div><span class="var">--paper #F3F7FE</span>
+      <dl><dt>用途</dt><dd><b>ページの地。すべての下。</b>白ではなく青みのほぼ白</dd>
+      <dt>避ける</dt><dd>カードの面。白との差が消える</dd>
+      <dt>要点</dt><dd>ここが無彩色だと全部が冷たくなる。<b>地に色を入れるのが起点</b></dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#FFFFFF"></div><div class="body">
+      <div class="nm">白 sheet</div><span class="var">--sheet #FFFFFF</span>
+      <dl><dt>用途</dt><dd><b>データが乗る面。</b>指板・カード・入力欄</dd>
+      <dt>避ける</dt><dd>ページ全面。地との差が消える</dd>
+      <dt>注意</dt><dd>地との比は <b>1.07</b>。<b>単独では見えない。必ず 1px の罫とセット</b></dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#E0EAF9"></div><div class="body">
+      <div class="nm">溝 well</div><span class="var">--well #E0EAF9</span>
+      <dl><dt>用途</dt><dd>へこんだ面。非選択のタブ、空状態、<code>code</code>、プログレスの溝</dd>
+      <dt>避ける</dt><dd>読む対象を乗せる面</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#D7E1F0"></div><div class="body">
+      <div class="nm">罫 line</div><span class="var">--line #D7E1F0</span>
+      <dl><dt>用途</dt><dd>面と面の境目。1px。<b>影の代わりはこれ</b></dd>
+      <dt>避ける</dt><dd>文字。区切りにしか使わない</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#E8EEF8"></div><div class="body">
+      <div class="nm">淡罫 line-soft</div><span class="var">--line-soft #E8EEF8</span>
+      <dl><dt>用途</dt><dd>面の中の区切り。表の行、リストの行</dd></dl></div></div>
+  </div>
+
+  <h3>紺（文字）4段階のみ</h3>
+  <div class="grid g4">
+    <div class="sw"><div class="face" style="background:#1C264C"></div><div class="body">
+      <div class="nm">紺 navy-1</div><span class="var">--navy-1 #1C264C</span>
+      <dl><dt>用途</dt><dd>コード名、見出し、主役</dd><dt>コントラスト</dt><dd>地 13.7 / 白 14.7</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#39426B"></div><div class="body">
+      <div class="nm">濃紺 navy-2</div><span class="var">--navy-2 #39426B</span>
+      <dl><dt>用途</dt><dd>本文</dd><dt>コントラスト</dt><dd>地 9.0 / 白 9.7</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#4E5779"></div><div class="body">
+      <div class="nm">中紺 navy-3</div><span class="var">--navy-3 #4E5779</span>
+      <dl><dt>用途</dt><dd>補助テキスト、非選択のタブ</dd><dt>コントラスト</dt><dd>地 6.6 / 白 7.1</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#606782"></div><div class="body">
+      <div class="nm">淡紺 navy-4</div><span class="var">--navy-4 #606782</span>
+      <dl><dt>用途</dt><dd>ラベル、最小の注記。<b>これより薄くしない</b></dd><dt>コントラスト</dt><dd>地 5.2 / 白 5.6</dd></dl></div></div>
+  </div>
+  <p class="note">現行の <code>--tx-1</code>〜<code>--tx-4</code>（<code>#6B6B6B</code> 系）は<b>完全な無彩色</b>だった。
+  すべてこの4段に置き換える。<b>薄さは変えない</b>——いちばん薄い段でも 5.2 で、現行の 5.1 を下回らない。</p>
+
+  <h3>青（唯一のアクセント）</h3>
+  <div class="grid g3">
+    <div class="sw"><div class="face" style="background:#1566EE"></div><div class="body">
+      <div class="nm">青 blue</div><span class="var">--blue #1566EE</span>
+      <dl><dt>用途</dt><dd>主操作の塗り、リンク、件数、選択中のタブの下線</dd>
+      <dt>避ける</dt><dd><b>指板とカードの中。</b>度数の 3rd・sus と競合する</dd>
+      <dt>コントラスト</dt><dd>地 4.7 / 白 5.0。<b>サイズ制限なし</b></dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#0D3B8A"></div><div class="body">
+      <div class="nm">濃青 blue-deep</div><span class="var">--blue-deep #0D3B8A</span>
+      <dl><dt>用途</dt><dd><b>白い文字が乗る唯一の面。</b>上部の帯</dd>
+      <dt>避ける</dt><dd>広い面積。1画面に1つだけ</dd>
+      <dt>コントラスト</dt><dd>白文字 10.5</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#D7E5FE"></div><div class="body">
+      <div class="nm">淡青 blue-soft</div><span class="var">--blue-soft #D7E5FE</span>
+      <dl><dt>用途</dt><dd>選択中・フォーカスの淡い下地</dd>
+      <dt>避ける</dt><dd><b>この上に青い文字を置かない（3.97 で不足）。</b>紺なら 11.6</dd></dl></div></div>
+  </div>
+
+  <h3>度数（データの符号化専用）</h3>
+  <p class="note"><b>7色のうち5色は現行のまま変えない。</b>触るのは <code>--c-tension</code> と <code>--c-none</code> の2色だけで、
+  どちらも見やすさのため（理由は各カードと §見やすさ）。<br>
+  <b>青を UI に使うことで、度数の 3rd・sus と衝突する危険が生まれた。</b>
+  解決は色を変えることではなく<b>場所を分けること</b>——青は帯・リンク・タブ・主操作にだけ出て、
+  <b>指板とカードの中には1pxも入らない</b>。選択中のカードの縁も青ではなく紺 2px にする。</p>
+  <div class="grid g4">
+    <div class="sw"><div class="face" style="background:#A2553C"></div><div class="body"><div class="nm">Root</div><span class="var">--c-root #A2553C</span></div></div>
+    <div class="sw"><div class="face" style="background:#41627F"></div><div class="body"><div class="nm">3rd</div><span class="var">--c-third #41627F</span>
+      <dl><dt>注意</dt><dd><code>--blue</code> と同じ面に出さない</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#7E99AC"></div><div class="body"><div class="nm">sus</div><span class="var">--c-sus #7E99AC</span>
+      <dl><dt>注意</dt><dd>同上</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#8F8F88"></div><div class="body"><div class="nm">5th</div><span class="var">--c-fifth #8F8F88</span></div></div>
+    <div class="sw"><div class="face" style="background:#4E7355"></div><div class="body"><div class="nm">6th / 7th</div><span class="var">--c-seventh #4E7355</span></div></div>
+    <div class="sw"><div class="face" style="background:#7F6520"></div><div class="body"><div class="nm">tension</div><span class="var">--c-tension #7F6520</span>
+      <dl><dt>変更点</dt><dd>#9A7A32 から深く。白抜きの音名を AA に乗せるため（4.04 → 5.55）</dd></dl></div></div>
+    <div class="sw"><div class="face" style="background:#ADB3C2"></div><div class="body"><div class="nm">構成音外</div><span class="var">--c-none #ADB3C2</span>
+      <dl><dt>変更点</dt><dd>#B4B4AE（無彩色）から青灰へ。<b>退く色こそ地と同じ色相にする</b></dd></dl></div></div>
+  </div>
+</section>
+
+<section id="type">
+  <span class="tag">TYPOGRAPHY 文字</span>
+  <h2>大きさと太さで段差をつける</h2>
+  <p class="lede">書体は1つ（<code>--font</code>）だけ。コード名も例外にしない。
+  <b>個性は形ではなく、大きさ・太さ・余白で出す。</b>読み込みは発生しない（OS内蔵）。</p>
+
+  <div class="type"><div>
+    <div class="chordname">Cmaj7</div>
+  </div><div class="spec">
+    <b>コード名</b>
+    <code>--font / 46px / 700 / 1.1 / .01em</code><br>
+    用途: 判定第1位、画面の主役<br>
+    <span class="why">判断: 現行の最大は 22px で、h1 の 17px とほぼ差がなかった。
+    <b>ここを 46px / 700 まで引き上げるのがこの仕様書でいちばん大きい変更。</b>
+    書体を足さずに主役を作る手段が、大きさと太さしか残っていないため。</span>
+  </div></div>
+
+  <div class="type"><div><div style="font-size:34px;font-weight:700;color:var(--navy-1);line-height:1.35">押さえ方を探す</div></div>
+    <div class="spec"><b>画面タイトル</b><code>34px / 700 / 1.35</code><br>用途: 画面の名前
+    <span class="why">判断: 参照した音楽アプリはどれもここが大きく太い。現行の h1 は 17px / 400 で、本文との差がほぼ無かった。</span></div></div>
+
+  <div class="type"><div><div style="font-size:26px;font-weight:700;color:var(--navy-1)">コード名から探す</div></div>
+    <div class="spec"><b>セクション見出し</b><code>26px / 700 / 1.4</code><br>用途: 画面内の区切り
+    <span class="why">判断: 画面タイトルとタブの間。ここを 12px の小見出しで済ませていたのが平坦さの一因。</span></div></div>
+
+  <div class="type"><div><div style="font-size:15px;font-weight:700;color:var(--navy-1)">指板から調べる</div></div>
+    <div class="spec"><b>タブ（機能の見出し）</b><code>15px / 選択中700 / 1.5</code><br>用途: 機能の切り替え
+    <span class="why">判断: 選択中と非選択の差を、色・太さ・下線の3つで示す。色だけに依存しない。</span></div></div>
+
+  <div class="type"><div><div style="font-size:15px;color:var(--navy-1)">Cm7、F#7#9、Bbmaj9 …</div></div>
+    <div class="spec"><b>入力文字</b><code>15px / 400</code><br>用途: コード名入力欄
+    <span class="why">判断: 打ち込む対象なので本文より大きく。</span></div></div>
+
+  <div class="type"><div><div style="font-size:14px;color:var(--navy-2)">押さえた音から候補をスコア順に提示します。</div></div>
+    <div class="spec"><b>本文</b><code>14px / 400 / 1.85</code> 色 <code>--navy-2</code><br>用途: 説明文
+    <span class="why">判断: 日本語で詰まらない行間。</span></div></div>
+
+  <div class="type"><div><div style="font-size:13px;font-weight:700;color:var(--navy-1)">すべて外す</div></div>
+    <div class="spec"><b>ボタン・フォーム</b><code>13px / 700</code><br>用途: 操作の文字
+    <span class="why">判断: 操作は本文より小さくてよいが、太さで押せることを示す。当たり判定は44px。</span></div></div>
+
+  <div class="type"><div><div style="font-size:12px;color:var(--navy-3)">597 件中 20 件を表示（C）</div></div>
+    <div class="spec"><b>補助テキスト</b><code>12px / 400</code> 色 <code>--navy-3</code><br>用途: 件数、理由、エラー
+    <span class="why">判断: 薄くするなら navy-3 まで。navy-4 は最小ラベル専用。</span></div></div>
+
+  <div class="type"><div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--navy-4)">チューニング</div></div>
+    <div class="spec"><b>ラベル</b><code>11px / 700 / .06em</code> 色 <code>--navy-4</code><br>用途: フィールド名
+    <span class="why">判断: <b>UIの文字はここが最小。これより小さくも薄くもしない。</b>現行の 10px / 7px は廃止。</span></div></div>
+
+  <p class="note" style="margin-top:var(--s5)"><b>廃止するサイズ:</b> 10px と 7px。実測で 116要素がここに集中していた。
+  <br><b>唯一の例外は「点の中」。</b>指板の音名とカードの指番号だけは 10px / 700 を許す。
+  塗りつぶした円の上に太字で乗る文字は、地の上の 10px とは別物だから。
+  <b>点の外に 11px 未満を置かない。</b>これで 9px・7px の逃げ道を塞ぐ。</p>
+  <p class="note"><b>太さは 400 と 700 の2つだけ。</b>500 と 600 は作らない——中間があると「なんとなく太い」が増えて段差が消える。
+  現行の 500 はすべて 700 か 400 のどちらかに寄せる。</p>
+</section>
+
+<section id="space">
+  <span class="tag">SPACE 余白・角丸・罫・影</span>
+  <h2>厚みは影ではなく罫で出す</h2>
+  <div class="grid g3">
+    <div class="card">
+      <h3 style="margin-top:0">余白</h3>
+      <p class="note">4px 刻み。近いものは <code>--s2</code>、群の間は <code>--s5</code>、セクションの間は <code>--s7〜8</code>。
+      <b>同じ値を並べない</b>——群の中は詰め、群の間は開ける。</p>
+      <div style="display:flex;align-items:flex-end;gap:var(--s3);margin-top:var(--s3);font-size:11px;color:var(--navy-4)">
+        <div><div style="width:4px;height:4px;background:var(--blue-deep)"></div>s1 4</div>
+        <div><div style="width:8px;height:8px;background:var(--blue-deep)"></div>s2 8</div>
+        <div><div style="width:16px;height:16px;background:var(--blue-deep)"></div>s4 16</div>
+        <div><div style="width:24px;height:24px;background:var(--blue-deep)"></div>s5 24</div>
+        <div><div style="width:48px;height:48px;background:var(--blue-deep)"></div>s7 48</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">角丸</h3>
+      <p class="note">現行の 6px より<b>大きくする</b>。<code>--r 8px</code>（部品）と <code>--r-lg 14px</code>（面）の2段だけ。円は <code>50%</code>。
+      <b>ピル形は使わない</b>——SaaS風のタグに寄るため。</p>
+      <div style="display:flex;gap:var(--s4);margin-top:var(--s3);font-size:11px;color:var(--navy-4)">
+        <div><div style="width:66px;height:36px;background:var(--sheet);border:1px solid var(--line);border-radius:8px"></div><div style="margin-top:4px">8px 部品</div></div>
+        <div><div style="width:66px;height:36px;background:var(--sheet);border:1px solid var(--line);border-radius:14px"></div><div style="margin-top:4px">14px 面</div></div>
+        <div><div style="width:66px;height:36px;background:var(--sheet);border:1px solid var(--line);border-radius:999px"></div><div style="margin-top:4px;text-decoration:line-through">ピル</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">罫</h3>
+      <p class="note">1px <code>--line</code> が基本。面の中の区切りは <code>--line-soft</code>。
+      <b>2px は選択状態にだけ使う</b>（タブの下線＝青、カードの縁＝紺）。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">影</h3>
+      <p class="note"><b><code>box-shadow</code> は1つも使わない。</b>
+      地がほぼ白なので、<b>段差は「上」ではなく「下」に取る</b>——浮かせるのではなく、へこませる。
+      浮いている要素（サジェスト、ポップオーバー、下部バー）は白い面のまま、<b>1pxの罫だけで持ち上げる</b>。</p>
+      <div style="margin-top:var(--s3);background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:var(--s3);font-size:12px;color:var(--navy-3)">浮いている面：白＋罫だけ</div>
+      <div style="margin-top:var(--s2);background:var(--well);border:1px solid var(--line);border-radius:var(--r);padding:var(--s3);font-size:12px;color:var(--navy-3)">へこんだ面：溝＋罫。非選択・空状態</div>
+    </div>
+  </div>
+</section>
+
+<section id="parts">
+  <span class="tag">COMPONENTS 部品</span>
+  <h2>実物</h2>
+  <div class="grid g3">
+    <div class="card">
+      <h3 style="margin-top:0">ボタン</h3>
+      <div style="display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap">
+        <button class="btn primary">再生</button>
+        <button class="btn second">同時</button>
+        <button class="btn quiet">すべて外す</button>
+        <button class="btn second" disabled>−</button>
+      </div>
+      <p class="use"><b>使う</b> 主操作＝青の塗り／補助＝白に罫／静かな操作＝青の文字<br>
+      <b>使わない</b> 同じ画面で青の塗りを2つ以上。主操作は1画面に1つ<br>
+      <b>状態</b> 通常／hover（青は暗く、白は罫が濃く）／focus（罫が青）／disabled（不透明度 .4）</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">入力・選択</h3>
+      <label class="field"><span>コード名</span><input class="inp" value="Cmaj7" style="width:130px"></label>
+      <label class="field"><span>チューニング</span>
+        <select class="inp" style="font-size:13px;padding:8px 10px"><option>Standard</option><option>DADGAD</option></select></label>
+      <p class="use"><b>使う</b> 白い面＋1pxの罫。文字は 15px。<b>打ち込む欄はへこませない</b>——溝だと入力した文字が沈む<br>
+      <b>状態</b> focus は罫が <code>--blue</code> に変わるだけ。光る影は付けない</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">タブ</h3>
+      <div class="tabs"><button class="tab on">指板から調べる</button><button class="tab">コード名から探す</button></div>
+      <p class="use"><b>使う</b> 機能の分割。常に上部に固定し、両方のラベルが見えている<br>
+      <b>使わない</b> タブの中でさらにモードを切る<br>
+      <b>状態</b> 選択中 = <code>--navy-1</code> 700 + <code>--blue</code> の2px下線</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">度数の凡例</h3>
+      <div class="legend">
+        <span><i style="background:var(--c-root)"></i>Root</span>
+        <span><i style="background:var(--c-third)"></i>3rd</span>
+        <span><i style="background:var(--c-fifth)"></i>5th</span>
+        <span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
+      </div>
+      <p class="use"><b>使う</b> 色の点が出ている面のすぐ上。いま画面に出ている度数だけを並べる<br>
+      <b>使わない</b> 全6色の固定表。盤上にない色の説明は邪魔になる<br>
+      <b>状態</b> 何も鳴っていなければ非表示（行ごと消える）</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">指板（この道具の主役）</h3>
+      <svg width="100%" viewBox="0 0 430 168" style="display:block" role="img" aria-label="C コードを押さえた指板">
+        <rect x="0.5" y="0.5" width="429" height="167" rx="14" fill="#FFFFFF" stroke="#D7E1F0"/>
+        <g font-family="Noto Sans JP,sans-serif" font-size="11" fill="#606782" text-anchor="middle">
+          <text x="26" y="30">E</text><text x="26" y="72">G</text><text x="26" y="135" fill="#ADB3C2">×</text>
+        </g>
+        <rect x="44" y="16" width="7" height="129" fill="#1C264C"/>
+        <g stroke="#E8EEF8" stroke-width="1">
+          <line x1="51" y1="26" x2="418" y2="26"/><line x1="51" y1="47" x2="418" y2="47"/>
+          <line x1="51" y1="68" x2="418" y2="68"/><line x1="51" y1="89" x2="418" y2="89"/>
+          <line x1="51" y1="110" x2="418" y2="110"/><line x1="51" y1="131" x2="418" y2="131"/>
+        </g>
+        <g stroke="#D7E1F0" stroke-width="1.5">
+          <line x1="120" y1="16" x2="120" y2="145"/><line x1="189" y1="16" x2="189" y2="145"/>
+          <line x1="258" y1="16" x2="258" y2="145"/><line x1="327" y1="16" x2="327" y2="145"/>
+          <line x1="396" y1="16" x2="396" y2="145"/>
+        </g>
+        <g font-family="Noto Sans JP,sans-serif" font-size="11" fill="#606782" text-anchor="middle">
+          <text x="85" y="161">1</text><text x="154" y="161">2</text><text x="223" y="161">3</text>
+          <text x="292" y="161">4</text><text x="361" y="161">5</text>
+        </g>
+        <circle cx="292" cy="153" r="3" fill="#D7E1F0"/>
+        <circle cx="85"  cy="47"  r="13" fill="#A2553C"/><text x="85"  y="51"  font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">C</text>
+        <circle cx="154" cy="89"  r="13" fill="#41627F"/><text x="154" y="93"  font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">E</text>
+        <circle cx="223" cy="110" r="13" fill="#A2553C"/><text x="223" y="114" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">C</text>
+      </svg>
+      <p class="use"><b>変える点</b> 面を白にし、ナットを厚い紺の帯に、フレットを太くする。点は 13px 半径、中の音名は 11px / 700<br>
+      <b>使わない</b> 指板の中に <code>--blue</code>。3rd の点と競合する</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">状態</h3>
+      <div class="state" style="margin-bottom:var(--s2)">コード名を入力すると押さえ方を生成します</div>
+      <div class="state" style="margin-bottom:var(--s2);background:#FDECEA;border:1px solid #F3C9C2;border-style:solid;color:#8C2F1E">ルート音が読めません（A〜G で始めてください）</div>
+      <div class="state">押さえ方を探しています…</div>
+      <p class="use"><b>空</b>＝破線の罫＋溝。<b>エラー</b>＝赤の淡い面＋赤の文字（<b>唯一、青でも紺でもない色</b>）。
+      <b>読み込み中</b>＝空と同じ形で文言だけ変える（位置が飛ばない）</p>
+    </div>
+  </div>
+</section>
+
+<section id="screen">
+  <span class="tag">SCREENS 画面</span>
+  <h2>主要画面</h2>
+  <div class="grid g2">
+    <div class="mock">
+      <div class="bar">指板から調べる（モバイル）</div>
+      <div class="body">
+        <div style="font-size:22px;font-weight:700;color:var(--navy-1);margin-bottom:var(--s2)">指板から調べる</div>
+        <div class="tabs" style="margin-bottom:var(--s3)"><button class="tab on" style="font-size:13px;padding:6px 2px">指板から調べる</button><button class="tab" style="font-size:13px;padding:6px 2px">コード名から探す</button></div>
+        <div style="display:flex;gap:var(--s2);align-items:center;margin-bottom:var(--s3)">
+          <span style="font-size:11px;font-weight:700;color:var(--navy-4)">チューニング</span>
+          <span style="font-size:12px;color:var(--navy-1);background:var(--sheet);border:1px solid var(--line);border-radius:8px;padding:4px 9px">Standard</span>
+          <span style="font-size:11px;color:var(--navy-3);letter-spacing:.08em">E A D G B E</span>
+        </div>
+        <div class="legend" style="font-size:11px;margin-bottom:6px">
+          <span><i style="background:var(--c-root)"></i>Root</span><span><i style="background:var(--c-third)"></i>3rd</span><span><i style="background:var(--c-fifth)"></i>5th</span>
+        </div>
+        <svg width="100%" viewBox="0 0 340 128" style="display:block">
+          <rect x="0.5" y="0.5" width="339" height="127" rx="14" fill="#FFFFFF" stroke="#D7E1F0"/>
+          <g font-family="Noto Sans JP,sans-serif" font-size="10" fill="#606782" text-anchor="middle">
+            <text x="17" y="26">E</text><text x="17" y="60">G</text><text x="17" y="111" fill="#ADB3C2">&#215;</text>
+          </g>
+          <rect x="30" y="12" width="6" height="104" fill="#1C264C"/>
+          <g stroke="#E8EEF8" stroke-width="1">
+            <line x1="36" y1="22" x2="330" y2="22"/><line x1="36" y1="39" x2="330" y2="39"/>
+            <line x1="36" y1="56" x2="330" y2="56"/><line x1="36" y1="73" x2="330" y2="73"/>
+            <line x1="36" y1="90" x2="330" y2="90"/><line x1="36" y1="107" x2="330" y2="107"/>
+          </g>
+          <g stroke="#D7E1F0" stroke-width="1.5">
+            <line x1="94" y1="12" x2="94" y2="116"/><line x1="152" y1="12" x2="152" y2="116"/>
+            <line x1="210" y1="12" x2="210" y2="116"/><line x1="268" y1="12" x2="268" y2="116"/>
+          </g>
+          <circle cx="239" cy="120" r="2.5" fill="#D7E1F0"/>
+          <circle cx="65"  cy="39" r="11" fill="#A2553C"/><text x="65"  y="43" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">C</text>
+          <circle cx="123" cy="73" r="11" fill="#41627F"/><text x="123" y="77" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">E</text>
+          <circle cx="181" cy="90" r="11" fill="#A2553C"/><text x="181" y="94" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">C</text>
+        </svg>
+        <div style="margin-top:var(--s3);display:flex;align-items:baseline;gap:var(--s3)">
+          <span class="chordname" style="font-size:34px">C</span>
+          <span style="font-size:12px;color:var(--navy-3)">完全一致</span>
+        </div>
+        <div style="border-top:1px solid var(--line-soft);margin-top:6px;padding-top:6px;display:flex;align-items:baseline;gap:var(--s3)">
+          <span style="font-size:20px;font-weight:700;color:var(--navy-1)">C5</span>
+          <span style="font-size:12px;color:var(--navy-3)">E が構成音外</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock">
+      <div class="bar">コード名から探す（モバイル）</div>
+      <div class="body">
+        <div style="font-size:22px;font-weight:700;color:var(--navy-1);margin-bottom:var(--s2)">コード名から探す</div>
+        <div class="tabs" style="margin-bottom:var(--s3)"><button class="tab" style="font-size:13px;padding:6px 2px">指板から調べる</button><button class="tab on" style="font-size:13px;padding:6px 2px">コード名から探す</button></div>
+        <label class="field" style="margin-bottom:var(--s3)"><span>コード名</span><input class="inp" value="Cmaj7" style="width:120px;font-size:13px;padding:7px 10px"><span style="color:var(--blue);font-size:12px;font-weight:700">872件 &#8595;</span></label>
+        <div class="legend" style="font-size:11px;margin-bottom:6px">
+          <span><i style="background:var(--c-root)"></i>Root</span><span><i style="background:var(--c-third)"></i>3rd</span><span><i style="background:var(--c-fifth)"></i>5th</span><span><i style="background:var(--c-seventh)"></i>6th / 7th</span>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;gap:var(--s2)"><div style="background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:6px;position:relative"><span style="position:absolute;top:5px;right:7px;font-size:11px;font-weight:700;color:var(--navy-4)">易</span><svg width="100%" viewBox="-4 -2 93 90" style="display:block;margin-top:12px"><line x1="10" y1="17" x2="75" y2="17" stroke="#1C264C" stroke-width="4"/><line x1="10" y1="32" x2="75" y2="32" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="47" x2="75" y2="47" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="62" x2="75" y2="62" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="77" x2="75" y2="77" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="17" x2="10" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="23" y1="17" x2="23" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="36" y1="17" x2="36" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="49" y1="17" x2="49" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="62" y1="17" x2="62" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="75" y1="17" x2="75" y2="77" stroke="#D7E1F0" stroke-width="1"/><g stroke="#ADB3C2" stroke-width="1.5" stroke-linecap="round"><line x1="7" y1="6" x2="13" y2="12"/><line x1="13" y1="6" x2="7" y2="12"/></g><circle cx="49" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="62" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="75" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="23" cy="54.5" r="7.5" fill="#A2553C"/><circle cx="36" cy="39.5" r="7.5" fill="#41627F"/><text x="23" y="58" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">2</text><text x="36" y="43" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">1</text></svg><div style="font-size:11px;color:var(--navy-4);text-align:center;margin-top:4px;font-variant-numeric:tabular-nums">x,3,2,0,0,0</div></div><div style="background:var(--sheet);border:2px solid var(--navy-1);border-radius:var(--r);padding:6px;position:relative"><span style="position:absolute;top:5px;left:7px;font-size:11px;font-weight:700;color:var(--navy-4);font-variant-numeric:tabular-nums">5fr</span><span style="position:absolute;top:5px;right:7px;font-size:11px;font-weight:700;color:var(--navy-4)">易</span><svg width="100%" viewBox="-4 -2 93 90" style="display:block;margin-top:12px"><line x1="10" y1="17" x2="75" y2="17" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="32" x2="75" y2="32" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="47" x2="75" y2="47" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="62" x2="75" y2="62" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="77" x2="75" y2="77" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="17" x2="10" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="23" y1="17" x2="23" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="36" y1="17" x2="36" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="49" y1="17" x2="49" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="62" y1="17" x2="62" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="75" y1="17" x2="75" y2="77" stroke="#D7E1F0" stroke-width="1"/><g stroke="#ADB3C2" stroke-width="1.5" stroke-linecap="round"><line x1="7" y1="6" x2="13" y2="12"/><line x1="13" y1="6" x2="7" y2="12"/></g><g stroke="#ADB3C2" stroke-width="1.5" stroke-linecap="round"><line x1="20" y1="6" x2="26" y2="12"/><line x1="26" y1="6" x2="20" y2="12"/></g><circle cx="62" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="75" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="36" cy="24.5" r="7.5" fill="#8F8F88"/><circle cx="49" cy="24.5" r="7.5" fill="#A2553C"/><text x="36" y="28" font-size="10" font-weight="700" fill="#1C264C" text-anchor="middle" font-family="Noto Sans JP,sans-serif">1</text><text x="49" y="28" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">2</text></svg><div style="font-size:11px;color:var(--navy-4);text-align:center;margin-top:4px;font-variant-numeric:tabular-nums">x,x,5,5,0,0</div></div><div style="background:var(--sheet);border:1px solid var(--line);border-radius:var(--r);padding:6px;position:relative"><span style="position:absolute;top:5px;left:7px;font-size:11px;font-weight:700;color:var(--navy-4);font-variant-numeric:tabular-nums">10fr</span><span style="position:absolute;top:5px;right:7px;font-size:11px;font-weight:700;color:var(--navy-4)">易</span><svg width="100%" viewBox="-4 -2 93 90" style="display:block;margin-top:12px"><line x1="10" y1="17" x2="75" y2="17" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="32" x2="75" y2="32" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="47" x2="75" y2="47" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="62" x2="75" y2="62" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="77" x2="75" y2="77" stroke="#E8EEF8" stroke-width="1"/><line x1="10" y1="17" x2="10" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="23" y1="17" x2="23" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="36" y1="17" x2="36" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="49" y1="17" x2="49" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="62" y1="17" x2="62" y2="77" stroke="#D7E1F0" stroke-width="1"/><line x1="75" y1="17" x2="75" y2="77" stroke="#D7E1F0" stroke-width="1"/><g stroke="#ADB3C2" stroke-width="1.5" stroke-linecap="round"><line x1="7" y1="6" x2="13" y2="12"/><line x1="13" y1="6" x2="7" y2="12"/></g><g stroke="#ADB3C2" stroke-width="1.5" stroke-linecap="round"><line x1="20" y1="6" x2="26" y2="12"/><line x1="26" y1="6" x2="20" y2="12"/></g><circle cx="49" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="62" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="75" cy="9" r="4" fill="none" stroke="#606782" stroke-width="1.5"/><circle cx="36" cy="24.5" r="7.5" fill="#A2553C"/><text x="36" y="28" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="middle" font-family="Noto Sans JP,sans-serif">1</text></svg><div style="font-size:11px;color:var(--navy-4);text-align:center;margin-top:4px;font-variant-numeric:tabular-nums">x,x,10,0,0,0</div></div></div>
+        <p class="note" style="margin-top:var(--s2)">872 件中 20 件を表示（Cmaj7）</p>
+      </div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:var(--s3)">いま指板に出ている押さえ方のカードは <b><code>--navy-1</code> の2px縁</b>で示す。
+  <b>ここを青にしない</b>——カードの中には 3rd の青い点が既にあり、選択の青と度数の青が同じ面で並ぶため。
+  <b>UIの色と、データの色を、同じ面に混ぜない。</b></p>
+</section>
+
+<section id="resp">
+  <span class="tag">RESPONSIVE 可変</span>
+  <h2>幅が変わったとき</h2>
+  <table>
+    <tr><th>幅</th><th>ふるまい</th></tr>
+    <tr><td>640px〜（デスクトップ）</td><td>指板は横向き。カードは自動で折り返す。タブは上部固定</td></tr>
+    <tr><td>〜639px（モバイル）</td><td>指板は縦向きのネックに切り替わる。カードは3列。タブは上部固定のまま。判定結果は下部バーに要約が常駐する</td></tr>
+  </table>
+  <p class="note" style="margin-top:var(--s3)">向きの判定は <code>isVertical()</code>、座標は <code>geom()</code> が返す。
+  <b>座標を関数の外にハードコードしない。</b>画面タイトルは 34px → 27px、セクション見出しは 26px → 22px に落とす。
+  それ以外のサイズは変えない。</p>
+</section>
+
+<section id="a11y">
+  <span class="tag">ACCESSIBILITY 見やすさ</span>
+  <h2>実測値</h2>
+  <p class="lede">「みんなが見やすく」を守るための数値。<b>すべて計算済み。</b></p>
+  <table>
+    <tr><th>組み合わせ</th><th>比</th><th>判定</th></tr>
+    <tr><td>navy-1 / 地</td><td>13.66</td><td>AA本文</td></tr>
+    <tr><td>navy-2 / 地</td><td>9.03</td><td>AA本文</td></tr>
+    <tr><td>navy-3 / 地</td><td>6.60</td><td>AA本文</td></tr>
+    <tr><td>navy-4 / 地</td><td>5.20</td><td>AA本文（<b>ここが下限</b>）。現行の下限 5.1 を下回らない</td></tr>
+    <tr><td>青 / 地</td><td>4.69</td><td>AA本文。<b>サイズ制限なし</b></td></tr>
+    <tr><td>白文字 / 濃青の帯</td><td>10.45</td><td>AA本文</td></tr>
+    <tr><td>青 / 淡青</td><td>3.97</td><td><b>不足。淡青の上に青い文字を置かない</b>（紺なら 11.55）</td></tr>
+    <tr><td>白 / 地（面の分離）</td><td>1.07</td><td><b>面だけでは見えない。必ず 1px の罫を添える</b></td></tr>
+    <tr><td>溝 / 地</td><td>1.13</td><td>同上</td></tr>
+    <tr><td>エラーの赤 / 赤の淡い面</td><td>7.23</td><td>AA本文</td></tr>
+    <tr><td>エラーの赤 / Root のレンガ色</td><td>1.54</td><td><b>明るさがほぼ同じ。</b>形と位置で区別する（§未定義）</td></tr>
+  </table>
+
+  <h3>点の中の文字</h3>
+  <p class="note" style="margin:0 0 var(--s3)">度数の点の中には音名（指板）と指番号（カード）が乗る。
+  <b>白抜き固定をやめ、点ごとに白か紺かを選ぶ。</b>薄い点に白を乗せると読めないため。</p>
+  <table>
+    <tr><th>点</th><th>白を乗せた比</th><th>navy-1 を乗せた比</th><th>採用</th></tr>
+    <tr><td>Root <code>#A2553C</code></td><td>5.38</td><td>2.73</td><td>白</td></tr>
+    <tr><td>3rd <code>#41627F</code></td><td>6.41</td><td>2.29</td><td>白</td></tr>
+    <tr><td>6th / 7th <code>#4E7355</code></td><td>5.37</td><td>2.73</td><td>白</td></tr>
+    <tr><td>tension <code>#7F6520</code></td><td>5.55</td><td>2.62</td><td>白</td></tr>
+    <tr><td>sus <code>#7E99AC</code></td><td>2.98 不足</td><td>4.92</td><td><b>紺</b></td></tr>
+    <tr><td>5th <code>#8F8F88</code></td><td>3.25 不足</td><td>4.51</td><td><b>紺</b></td></tr>
+    <tr><td>構成音外 <code>#ADB3C2</code></td><td>2.10 不足</td><td>6.99</td><td><b>紺</b></td></tr>
+  </table>
+  <p class="note" style="margin:var(--s3) 0 0">実装は色ごとの分岐ではなく、点の色に対応づけた1つの表で持つ。
+  度数色を足したら<b>この表にも1行足す</b>——足し忘れれば読めない点ができる。</p>
+
+  <h3>色だけに依存しない</h3>
+  <ul class="note">
+    <li>度数は色に加えて<b>凡例の文字</b>で示す。色覚に依存しない</li>
+    <li>選択中のタブは色 + <b>太さ</b> + 下線の3つで示す</li>
+    <li>ミュートは色ではなく <b>&#215;</b> の形で示す</li>
+    <li>いま指板に出ているカードは色ではなく<b>縁の太さ</b>で示す</li>
+  </ul>
+
+  <h3>その他</h3>
+  <ul class="note">
+    <li>フォーカスは罫の色を <code>--blue</code> に変えて示す。<code>outline:none</code> だけにしない</li>
+    <li>SVG の要素を操作対象にするときは <code>role="button"</code> <code>tabindex="0"</code> と Enter/Space を自前で配線する</li>
+    <li>開閉する要素には <code>aria-expanded</code></li>
+    <li><code>prefers-reduced-motion:reduce</code> で <code>.12s</code> のトランジションとスクロールを無効化する</li>
+  </ul>
+</section>
+
+<section id="gap">
+  <span class="tag">KNOWN GAPS 未定義</span>
+  <h2>まだ決まっていないこと</h2>
+  <div class="grid g3">
+    <div class="card">
+      <h3 style="margin-top:0">決めてほしい</h3>
+      <ul>
+        <li><b>エラーの赤</b>。青でも紺でもない色をもう1つ入れることになる。度数の Root（レンガ色）と紛らわしくないか、実機で見たい</li>
+        <li><b>下部バー（#mini）の面</b>。白だと地と同化し、溝だと沈む。<b>濃青の細い帯</b>が候補だが、帯が画面に2本になる</li>
+        <li><b>濃青の帯を上部に置くか</b>。この仕様書では置いている。置かないなら青は主操作とリンクだけになり、かなり静かになる</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">検討して決めたこと</h3>
+      <ul>
+        <li><b>くすんだ陶器色の案は捨てた。</b>淡い色を面積で塗ると「味」ではなく「ぼんやり」になる</li>
+        <li><b>地はほぼ白のまま</b>、ただし無彩色ではなく <code>#F3F7FE</code>（青みのほぼ白）</li>
+        <li><b>コード名は明朝にしない。</b>書体は1つのまま</li>
+        <li><b>青と度数色の衝突は、色ではなく場所で解く。</b>指板とカードの中に青を入れない</li>
+        <li><b>点の中の白い音名がコントラスト不足だった。</b>薄い3色は紺にする、tension は深める</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">この仕様書が触れていない</h3>
+      <ul>
+        <li>ダークモード</li>
+        <li>アニメーション（現行は .12s のみ）</li>
+        <li>印刷表示</li>
+        <li>多言語</li>
+        <li>3つ目以降のタブが増えたときのナビ</li>
+        <li>カポ表示（実音とシェイプ名の併記）が 46px のコード名とどう並ぶか</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="footer">
+  Guitar Chord Lab &#8212; DESIGN.html ／ 単一HTML・外部依存なし・ブラウザで直接開ける<br>
+  デザインを変えたら、この文書も同じコミットで更新する。
+</div>
+
+</div>
+</body>
+</html>
