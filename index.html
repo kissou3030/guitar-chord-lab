@@ -74,7 +74,26 @@ body{
   -webkit-font-smoothing:antialiased;
   padding-bottom:var(--s8);
 }
-.shell{max-width:720px;margin:0 auto;padding:0 var(--s5)}
+/* one left-aligned column whose width depends on what is in it. the neck needs
+   940px to show 15 frets; a paragraph needs about half that. a single width for
+   both is what left 600px empty on each side at 1920 while fret 11-15 sat
+   behind a horizontal scroll. */
+.shell{max-width:1440px;margin:0 auto;padding:0 var(--s5)}
+/* text and controls keep a readable measure inside that column */
+.ctlrow,.seclabel,.filters,.sugWrap{max-width:56em}
+
+/* wide screens: the neck and the name it produces, side by side. pressing a
+   string then changes the verdict without the eye leaving the neck — the loop
+   this screen exists for. 988 (the neck box) + s6 + 360 (the narrowest the
+   verdict still reads at) + the shell's padding is where both columns fit;
+   below it the layout falls back to one column and nothing is cramped. */
+@media (min-width:1428px){
+  .playfield{display:grid;grid-template-columns:988px minmax(360px,1fr);
+             gap:var(--s6);align-items:start}
+  .playfield .sec{padding-top:0;margin-top:var(--s6);border-top:0}
+  .playfield .verdict{position:sticky;top:var(--s6)}
+  #results{max-width:none}
+}
 
 /* ---- typography ------------------------------------------------------ */
 h1{
@@ -211,6 +230,9 @@ button{
 /* ---- fretboard ------------------------------------------------------- */
 .board-sec{margin-top:var(--s6);position:relative}
 #boardBox{
+  /* the neck is 940px for 15 frets (geom(): 76 + 15*56 + 24). past this the box
+     would only add empty white to the right of fret 15. */
+  max-width:988px;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:var(--r-lg);
@@ -337,6 +359,9 @@ input[type=range]::-moz-range-thumb{
 
 @media (max-width:639px) and (orientation:portrait){
   #boardBox{padding:var(--s2)}
+  /* the vertical neck is 316px wide (geom(): 28*2 + 52*5). on a 360px phone the
+     shell's own padding leaves 326px, and s2 on both sides clips it by 6px. */
+  @media (max-width:374px){ #boardBox{padding:var(--s1)} }
   #mini{display:flex}
   body{padding-bottom:88px}
   #boardBox.vert{max-height:56vh}
@@ -425,6 +450,8 @@ input[type=range]::-moz-range-thumb{
       </div>
     </section>
 
+    <!-- the neck and its verdict: one unit, side by side once there is room -->
+    <div class="playfield">
     <section class="board-sec">
       <div class="legendSlot" id="slotLegendBoard"></div>
       <div id="boardBox"><svg id="board"></svg></div>
@@ -440,10 +467,11 @@ input[type=range]::-moz-range-thumb{
       </div>
     </section>
 
-    <section class="sec">
+    <section class="sec verdict">
       <h2 class="seclabel">判定結果 <span class="readout" id="noteReadout"></span></h2>
       <div id="results"></div>
     </section>
+    </div>
   </div>
 
   <div id="paneFind" role="tabpanel" aria-labelledby="tabFind" hidden>

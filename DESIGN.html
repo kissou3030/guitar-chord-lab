@@ -576,12 +576,39 @@ li{margin-bottom:6px}
 <section id="resp">
   <span class="tag">RESPONSIVE 可変</span>
   <h2>幅が変わったとき</h2>
+  <p class="lede" style="margin-bottom:var(--s4)"><b>画面の幅に対して1つの <code>max-width</code> を決めない。中身ごとに決める。</b>
+  過去に全体を 720px 固定にしていて、<b>1920px の画面で左右に 600px ずつ空いているのに、
+  指板の11〜15フレットが横スクロールの向こうに隠れていた。</b>空白が問題なのではなく、
+  空いている場所を使えていないことが問題だった。</p>
+
+  <h3 style="margin-top:0">中身ごとの幅</h3>
+  <table>
+    <tr><th>中身</th><th>幅</th><th>理由</th></tr>
+    <tr><td><b>指板</b></td><td>988px で頭打ち</td>
+      <td>ネックは 940px（<code>geom()</code>: 76 + 15×56 + 24）。それ以上は<b>フレット15の右に白が余るだけ</b></td></tr>
+    <tr><td><b>カード</b></td><td>画面いっぱい（1440px まで）</td>
+      <td>872件を並べる。広いほど一度に見える。1512px で10列</td></tr>
+    <tr><td>文章・コントロール・判定結果</td><td>56em</td>
+      <td>読む幅。ここを広げると <code>C … 完全一致 … 55</code> と行が間延びする</td></tr>
+  </table>
+
+  <h3>段階</h3>
   <table>
     <tr><th>幅</th><th>ふるまい</th></tr>
-    <tr><td>640px〜（デスクトップ）</td><td>指板は横向き。カードは自動で折り返す。タブは上部固定</td></tr>
+    <tr><td><b>1428px〜</b></td><td><b>指板と判定結果が横に並ぶ</b>（<code>.playfield</code> が grid になる）。
+      押さえながら、目を指板から離さずにコード名が変わるのが見える。
+      判定第1位は y=716 → <b>y=348</b> に上がる</td></tr>
+    <tr><td>640〜1427px</td><td>1カラム。指板は横向きで 988px、その下に判定結果。カードは幅に応じて 5〜10列</td></tr>
     <tr><td>〜639px（モバイル）</td><td>指板は縦向きのネックに切り替わる。カードは3列。タブは上部固定のまま。判定結果は下部バーに要約が常駐する</td></tr>
+    <tr><td>〜374px（小さい端末）</td><td>指板の余白を <code>--s2</code> → <code>--s1</code> に詰める。
+      縦のネックは 316px（<code>geom()</code>: 28×2 + 52×5）で、360px の端末では
+      <b>これを詰めないと6px はみ出す</b></td></tr>
   </table>
-  <p class="note" style="margin-top:var(--s3)">向きの判定は <code>isVertical()</code>、座標は <code>geom()</code> が返す。
+
+  <p class="note" style="margin-top:var(--s3)"><b>1428px はどこから来た数字か</b> —
+  988（指板）+ <code>--s6</code>（間）+ 360（判定結果がまだ読める最小）+ シェルの左右余白。
+  これ未満で2カラムにすると<b>右の列が潰れる</b>（1180px で試したら 112px しか無かった）。<br>
+  向きの判定は <code>isVertical()</code>、座標は <code>geom()</code> が返す。
   <b>座標を関数の外にハードコードしない。</b>画面タイトルは 34px → 27px、セクション見出しは 26px → 22px に落とす。
   それ以外のサイズは変えない。</p>
 </section>
