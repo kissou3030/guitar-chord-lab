@@ -297,6 +297,9 @@ button{
 #qJump:disabled{color:var(--tx-4);cursor:default}
 
 .filters{display:flex;gap:var(--s5);flex-wrap:wrap;align-items:center;margin-top:var(--s5)}
+/* this margin held the gap under 「押さえ方」. with no heading the filters lead
+   the section, and .sec already supplies the space above them. */
+.filters:first-child{margin-top:0}
 .filters .field > span{font-size:11px}
 input[type=range]{
   -webkit-appearance:none;appearance:none;
@@ -393,7 +396,8 @@ input[type=range]::-moz-range-thumb{
 
 <div id="mini">
   <span class="mlab" id="miniLab">—</span>
-  <span class="mwhy" id="miniWhy">指板をタップ</span>
+  <!-- replaced by TAP_HINT on the first render; kept in sync so there is no flash -->
+  <span class="mwhy" id="miniWhy">指板をタップして音を選んでください</span>
   <span class="mmore" id="miniMore"></span>
 </div>
 
@@ -487,9 +491,10 @@ input[type=range]::-moz-range-thumb{
       </div>
     </section>
 
+    <!-- no heading here: the tab is already named 「コード名から探す」 and the
+         section's own rule separates the query from its results. 「判定結果」 on
+         the other tab earns its heading by carrying the sounding notes. -->
     <section class="sec" id="findSec">
-      <h2 class="seclabel">押さえ方</h2>
-
       <div class="filters">
         <div class="field">
           <span>ポジション</span>
@@ -1100,6 +1105,11 @@ function renderBoard() {
   if (tuneStr !== null) renderTunePop();   // the chip it was anchored to is a new node
 }
 
+/* the same instruction appears in the results panel and in the pinned bar.
+   one constant, so the two cannot drift apart again — they already had
+   three different wordings between them. */
+const TAP_HINT = "指板をタップして音を選んでください";
+
 /* ---------- results (section 5-3 / 5-4) ---------- */
 function renderResults() {
   const list = currentResults(), el = $("results"), n = soundingMidi().length;
@@ -1108,7 +1118,7 @@ function renderResults() {
   $("noteReadout").textContent = n ? "— " + readout : "";
   renderMini(list, n, readout);          // before the early returns, so every case updates it
 
-  if (n === 0) { el.innerHTML = `<div class="empty">指板をタップして音を選んでください。</div>`; return; }
+  if (n === 0) { el.innerHTML = `<div class="empty">${TAP_HINT}。</div>`; return; }
   if (n === 1) { el.innerHTML = `<div class="empty">単音（${readout}）— コードではありません。</div>`; return; }
   if (n === 2 && !list.length) {
     el.innerHTML = `<div class="empty">${intervalName()} — 2音のみ</div>`; return;
@@ -1140,7 +1150,7 @@ function renderMini(list, n, readout) {
   const bar = $("mini"), lab = $("miniLab"), why = $("miniWhy"), more = $("miniMore");
   const dim = (l, w) => { bar.classList.add("dim"); lab.textContent = l; why.textContent = w; more.textContent = ""; };
 
-  if (n === 0)      return dim("—", "指板をタップして音を選ぶ");
+  if (n === 0)      return dim("—", TAP_HINT);
   if (n === 1)      return dim(readout, "単音 — コードではありません");
   if (!list.length) {
     if (n === 2) {
