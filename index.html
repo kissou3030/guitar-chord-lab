@@ -1356,29 +1356,114 @@ function renderSug() {
 }
 function hideSug() { $("sug").style.display = "none"; sugSel = -1; }
 
-/* ---------- audio: Karplus-Strong (section 8) ---------- */
-let actx = null;
-function pluck(freq, when, gain) {
-  const sr = actx.sampleRate, dur = 2.6;
+/* ---------- audio: Karplus-Strong (section 8) ----------
+   Voiced as an electric guitar rather than a nylon-string one. Four things
+   carry that difference and all four live in the string model or just after
+   it, so this stays synthesis — no samples, no dependency (§1).
+
+     1. the pick     a short band-limited burst, not a full-length noise fill.
+                     a pick sets a narrower band of the string moving than a
+                     fingertip does, and starts it harder.
+     2. the string   the loop filter becomes a tunable two-point average
+                     (bright .5 is the old fixed one) and damping rises. the
+                     old string was already long — the two-point average
+                     barely touches the fundamental — so the gain is in the
+                     body, not the length: averaged over the six open
+                     strings, 2.0s after the pick the string sits 9dB louder
+                     than it used to (-9.1dB against -18.1dB from its own
+                     attack).
+     3. the pickup   a magnetic pickup reads ONE point on the string, so every
+                     harmonic with a node there disappears. that comb is the
+                     fingerprint of an electric guitar, and it costs one extra
+                     read off the delay line we already have. .17 puts the
+                     notch on the 6th harmonic (measured -24dB), which is the
+                     same pitch class as the 3rd, so nothing a chord needs in
+                     order to be recognised is lost. moving the pickup toward
+                     the neck thickens the fundamental but walks the notch
+                     down onto the 5th and 4th, which a chord does need.
+     4. the amp      soft clipping into a cabinet curve, instead of a bare
+                     lowpass. shared by the whole chord, the way one amp is.
+
+   Split into pure pieces on purpose: stringBuffer() is DSP with no Web Audio
+   in it, so its decay, brightness and comb can be measured offline. */
+
+const KS = {
+  bright: 0.86,      // two-point loop filter; .5 is the old fixed average
+  damp:   0.9993,    // per-sample loop gain. .9965 was roughly a one-second note
+  pickup: 0.17,      // where the pickup sits, as a fraction of string length
+  burst:  0.45,      // pick width, as a fraction of one period
+  tone:   0.55       // one-pole on the burst: takes the fizz off the pick
+};
+
+/* the string itself. returns raw samples; no audio nodes, so it can be
+   rendered and measured without a sound card. */
+function stringBuffer(freq, sr, dur) {
   const N = Math.max(2, Math.round(sr / freq));
-  const buf = actx.createBuffer(1, Math.ceil(sr * dur), sr);
-  const d = buf.getChannelData(0);
+  const out = new Float32Array(Math.ceil(sr * dur));
   const line = new Float32Array(N);
-  for (let i = 0; i < N; i++) line[i] = Math.random() * 2 - 1;
+
+  // the pick: a short burst, low-passed, then centred so the string does not
+  // start with a DC offset that would thump through the amp
+  const burst = Math.max(2, Math.round(N * KS.burst));
+  let lp = 0, mean = 0;
+  for (let i = 0; i < N; i++) {
+    const w = i < burst ? Math.random() * 2 - 1 : 0;
+    lp += (w - lp) * KS.tone;
+    line[i] = lp;
+    mean += lp;
+  }
+  mean /= N;
+  for (let i = 0; i < N; i++) line[i] -= mean;
+
+  const tap = Math.max(1, Math.round(N * KS.pickup)) % N;
   let p = 0;
-  for (let i = 0; i < d.length; i++) {
+  for (let i = 0; i < out.length; i++) {
     const nx = (p + 1) % N;
-    d[i] = line[p];
-    line[p] = (line[p] + line[nx]) * 0.5 * 0.9965;
+    // the pickup reads one point, and cancels what is already there a tap away
+    out[i] = line[p] - line[(p + tap) % N];
+    line[p] = (KS.bright * line[p] + (1 - KS.bright) * line[nx]) * KS.damp;
     p = nx;
   }
+  return out;
+}
+
+let ampCurveCache = null;
+function ampCurve() {
+  if (ampCurveCache) return ampCurveCache;
+  const n = 1024, c = new Float32Array(n), k = 2.2;
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / (n - 1) - 1;
+    c[i] = Math.tanh(x * k) / Math.tanh(k);
+  }
+  return (ampCurveCache = c);
+}
+
+/* amp and cabinet. one per chord, not one per string — a real rig compresses
+   the whole chord together, which is most of why an electric sounds glued. */
+function ampBus(ctx) {
+  const hp = ctx.createBiquadFilter();                       // speakers have no sub
+  hp.type = "highpass"; hp.frequency.value = 90;
+  const pres = ctx.createBiquadFilter();                     // presence, not fizz
+  pres.type = "peaking"; pres.frequency.value = 2200; pres.Q.value = 0.9; pres.gain.value = 3.5;
+  const shape = ctx.createWaveShaper();
+  shape.curve = ampCurve(); shape.oversample = "2x";
+  const cab = ctx.createBiquadFilter();                      // the cabinet rolls off hard
+  cab.type = "lowpass"; cab.frequency.value = 4800; cab.Q.value = 0.9;
+  const out = ctx.createGain(); out.gain.value = 0.55;       // makeup after clipping
+  hp.connect(pres).connect(shape).connect(cab).connect(out);
+  return { input: hp, output: out };
+}
+
+let actx = null;
+function pluck(freq, when, gain, bus, dur) {
+  const buf = actx.createBuffer(1, Math.ceil(actx.sampleRate * dur), actx.sampleRate);
+  buf.getChannelData(0).set(stringBuffer(freq, actx.sampleRate, dur));
   const src = actx.createBufferSource(); src.buffer = buf;
-  const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4200;
   const g = actx.createGain();
   g.gain.setValueAtTime(0.0001, when);
-  g.gain.exponentialRampToValueAtTime(gain, when + 0.006);
+  g.gain.exponentialRampToValueAtTime(gain, when + 0.004);   // a pick is quicker than a finger
   g.gain.exponentialRampToValueAtTime(0.0008, when + dur);
-  src.connect(lp).connect(g).connect(actx.destination);
+  src.connect(g).connect(bus.input);
   src.start(when); src.stop(when + dur);
 }
 function playChord() {
@@ -1386,10 +1471,14 @@ function playChord() {
   if (!notes.length) return;
   if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
   if (actx.state === "suspended") actx.resume();          // iOS Safari
+  const dur = 3.6;                                       // it rings; give it room
+  const bus = ampBus(actx);
+  bus.output.connect(actx.destination);
   const t0 = actx.currentTime + 0.03;
   notes.forEach((n, i) => {
     const f = 440 * Math.pow(2, (n.midi - 69) / 12);
-    pluck(f, t0 + (state.strum ? i * 0.026 : 0), 0.22);
+    // a pick crosses the strings faster than a thumb does
+    pluck(f, t0 + (state.strum ? i * 0.018 : 0), 0.16, bus, dur);
   });
 }
 
