@@ -45,6 +45,19 @@
   /* matched to the greys these replace (fret 1.38, string 1.75 against white)
      so the neck keeps its weight. lighter and the grid stops reading as an
      instrument. */
+  /* the last raw colours, pulled in so dark mode is a token swap and nothing
+     has to be chased through the rules or the SVG builders */
+  --line-strong:#B9C6DC;                 /* a border under the pointer */
+  --row-hover:#EDF3FD;                   /* a candidate row under the pointer */
+  --tap-wash:rgba(28,38,76,.06);         /* a cell on the neck under the pointer */
+  --accent-press:#0F55CC;
+  --on-accent:#FFFFFF;                   /* text on the accent fill (the one button) */
+  --on-deep:#FFFFFF;                     /* text on the deep band, which stays dark in both themes */
+  --dot-ink-dark:#FFFFFF;                /* text inside a DARK degree dot */
+  --dot-ink-light:#1C264C;               /* text inside a LIGHT one */
+  --capo:#8FA0C4;
+  --capo-veil:rgba(243,247,254,.82);
+
   --fret:#D5E0F1;
   --string:#B9CADF;
   --nut:#1C264C;
@@ -57,6 +70,59 @@
 
   --font:"Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN",
          "Yu Gothic UI","Yu Gothic",Meiryo,system-ui,-apple-system,sans-serif;
+}
+
+/* ---- dark, by swapping the same tokens ------------------------------------
+   Built the same way round as the light one: the ground carries blue rather
+   than being neutral grey, the face that holds data sits a step ABOVE the
+   ground instead of below it, and the four ink steps stay four — never pure
+   white, for the same reason they are never pure black.
+
+   The degree hues are the light ones lifted until they read on a dark face;
+   their relationships (brick / blue / sage / ochre) are unchanged, so a dot
+   means the same thing in either theme. Measured against the face they sit
+   on: 5.9 to 8.2. The ink inside them flips to dark through the two
+   --dot-ink tokens, so ROLE_INK needs no branch.
+
+   Floor of the ink ladder is 5.28 on the ground — above the light theme's
+   5.20, so nothing gets harder to read by switching. */
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0E1522;
+    --surface:#172031;
+    --line:#2A3447;
+    --line-soft:#1F2838;
+    --line-strong:#3B475E;
+    --row-hover:#1C2538;
+    --tap-wash:rgba(232,238,249,.07);
+
+    --tx-1:#E8EEF9;
+    --tx-2:#C2CBDC;
+    --tx-3:#9AA5BC;
+    --tx-4:#7F8AA3;
+
+    --accent:#5B9BFF;
+    --accent-soft:#1E2C47;
+    --accent-press:#8FBAFF;
+    --blue-deep:#13325E;
+    --on-accent:#0B1220;
+    --on-deep:#E8EEF9;
+
+    --err:#FF9B85;
+    --err-soft:#3A1C16;
+
+    --c-root:#D98668; --c-third:#7FA8CE; --c-sus:#9FBCD2;
+    --c-fifth:#A9A9A1; --c-seventh:#7FB38B; --c-tension:#C9A24B; --c-none:#5C6478;
+    --dot-ink-dark:#0E1522;
+    --dot-ink-light:#0E1522;
+
+    --fret:#2B3547;
+    --string:#3B475E;
+    --nut:#E8EEF9;                      /* the nut is the light bar here */
+    --marker:#1E2736;
+    --capo:#53617D;
+    --capo-veil:rgba(14,21,34,.82);
+  }
 }
 
 *{box-sizing:border-box}
@@ -110,7 +176,7 @@ h1{
 /* the one dark face in the page: the site's own name lives here, so the blue
    has a fixed home and does not have to be sprinkled through the interface. */
 .head{background:var(--blue-deep);padding:var(--s5) 0}
-.head h1{color:#fff;font-size:20px;font-weight:700;letter-spacing:.05em}
+.head h1{color:var(--on-deep);font-size:20px;font-weight:700;letter-spacing:.05em}
 .sec{padding:var(--s7) 0 0;margin-top:var(--s7);border-top:1px solid var(--line)}
 
 /* ---- form controls: hand-built, no library defaults ------------------ */
@@ -129,7 +195,7 @@ select{
   background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236B6B6B' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;
 }
-select:hover,input[type=text]:hover{border-color:#B9C6DC}
+select:hover,input[type=text]:hover{border-color:var(--line-strong)}
 select:focus,input[type=text]:focus{border-color:var(--tx-4)}
 
 button{
@@ -148,12 +214,12 @@ button{
 
 /* the one primary action */
 .primary{
-  color:#fff;font-weight:700;
+  color:var(--on-accent);font-weight:700;
   border-color:var(--accent);
   background:var(--accent);
   padding:8px 18px;
 }
-.primary:hover{background:#0F55CC;border-color:#0F55CC}
+.primary:hover{background:var(--accent-press);border-color:var(--accent-press)}
 
 /* segmented pair */
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);
@@ -218,7 +284,7 @@ button{
 /* the neck must stay free of the UI blue: 3rd and sus are blue dots. */
 .tunechip.on{fill:var(--line-soft);stroke:var(--tx-1);stroke-width:1.5}
 .tunehit{fill:transparent;cursor:pointer}
-.tunehit:hover{fill:rgba(28,38,76,.06)}
+.tunehit:hover{fill:var(--tap-wash)}
 .tunehit:focus-visible{fill:var(--line-soft);stroke:var(--tx-1);outline:none}
 /* the current tuning, readable without opening anything */
 .tunenow{font-size:11px;color:var(--tx-3);letter-spacing:.06em;
@@ -248,7 +314,7 @@ button{
 #boardBox:focus{outline:none}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
     clip-path:inset(50%);white-space:nowrap;border:0}
-.hit:hover{fill:rgba(28,38,76,.05)}
+.hit:hover{fill:var(--tap-wash)}
 
 /* ---- results --------------------------------------------------------- */
 #results{display:flex;flex-direction:column}
@@ -259,7 +325,7 @@ button{
   border-radius:0;padding:var(--s3) 2px;cursor:pointer;
 }
 .res:first-child{border-top:0}
-.res:hover{background:#EDF3FD}
+.res:hover{background:var(--row-hover)}
 .res .lab{
   font-size:17px;font-weight:700;color:var(--tx-1);
   min-width:112px;letter-spacing:.01em;line-height:1.5;
@@ -335,7 +401,7 @@ input[type=range]::-moz-range-thumb{
   padding:var(--s3) var(--s2) var(--s2);cursor:pointer;text-align:center;position:relative;
   transition:border-color .12s ease;
 }
-.card:hover{border-color:#B9C6DC}
+.card:hover{border-color:var(--line-strong)}
 /* which voicing is on the neck: navy, not blue. the card already holds a blue
    3rd dot, and UI colour must not sit on the same face as data colour. */
 .card.active{border-color:var(--tx-1);outline:1px solid var(--tx-1);outline-offset:-2px}
@@ -395,8 +461,8 @@ input[type=range]::-moz-range-thumb{
 <body>
 
 <noscript>
-  <div style="max-width:720px;margin:48px auto;padding:0 24px;color:#39426B;font-size:14px;line-height:1.9">
-    <b style="color:#1C264C;font-weight:700">JavaScript が無効なため表示できません。</b><br>
+  <div style="max-width:720px;margin:48px auto;padding:0 24px;color:var(--tx-2);font-size:14px;line-height:1.9">
+    <b style="color:var(--tx-1);font-weight:700">JavaScript が無効なため表示できません。</b><br>
     メールやLINEの「プレビュー」で開くと、この状態になります。<br>
     いったんファイルを保存してから、Safari や Chrome で開いてください。
   </div>
@@ -857,11 +923,15 @@ const ROLE_COLOR = {
    degrees (sus 2.98, 5th 3.25, none 2.10), so those carry navy instead.
    ADD A ROW HERE WHENEVER A DEGREE COLOUR IS ADDED — a missing row is a dot
    nobody can read. */
+/* which dots are dark and which are light is a property of the palette, so the
+   two inks are tokens: in dark mode every dot turns light and both resolve to
+   the dark ink, and this table does not have to know. */
 const ROLE_INK = {
-  root:"#fff", third:"#fff", seventh:"#fff", tension:"#fff",
-  sus:"var(--tx-1)", fifth:"var(--tx-1)",
+  root:"var(--dot-ink-dark)", third:"var(--dot-ink-dark)",
+  seventh:"var(--dot-ink-dark)", tension:"var(--dot-ink-dark)",
+  sus:"var(--dot-ink-light)", fifth:"var(--dot-ink-light)",
 };
-const roleInk = role => (role && ROLE_INK[role]) || "var(--tx-1)";
+const roleInk = role => (role && ROLE_INK[role]) || "var(--dot-ink-light)";
 // the key lists these in this order; "none" is the colour a non-chord tone gets
 const ROLE_LABEL = {
   root:"Root", third:"3rd", sus:"sus", fifth:"5th",
@@ -1057,12 +1127,12 @@ function renderBoard() {
   /* greyed-out region behind the capo */
   if (state.capo > 0) {
     s += g.v
-      ? `<rect x="${g.sx(0) - 8}" y="${g.line(0)}" width="${g.colW * 5 + 16}" height="${g.line(state.capo) - g.line(0)}" fill="rgba(243,247,254,.82)"/>`
-      : `<rect x="${g.line(0)}" y="${g.sy(5) - 8}" width="${g.line(state.capo) - g.line(0)}" height="${g.rowH * 5 + 16}" fill="rgba(243,247,254,.82)"/>`;
+      ? `<rect x="${g.sx(0) - 8}" y="${g.line(0)}" width="${g.colW * 5 + 16}" height="${g.line(state.capo) - g.line(0)}" fill="var(--capo-veil)"/>`
+      : `<rect x="${g.line(0)}" y="${g.sy(5) - 8}" width="${g.line(state.capo) - g.line(0)}" height="${g.rowH * 5 + 16}" fill="var(--capo-veil)"/>`;
     const cb = 9;
     s += g.v
-      ? `<rect x="${g.sx(0) - 12}" y="${g.fy(state.capo) - cb / 2}" width="${g.colW * 5 + 24}" height="${cb}" rx="3" fill="#8FA0C4"/>`
-      : `<rect x="${g.fx(state.capo) - cb / 2}" y="${g.sy(5) - 12}" width="${cb}" height="${g.rowH * 5 + 24}" rx="3" fill="#8FA0C4"/>`;
+      ? `<rect x="${g.sx(0) - 12}" y="${g.fy(state.capo) - cb / 2}" width="${g.colW * 5 + 24}" height="${cb}" rx="3" fill="var(--capo)"/>`
+      : `<rect x="${g.fx(state.capo) - cb / 2}" y="${g.sy(5) - 12}" width="${cb}" height="${g.rowH * 5 + 24}" rx="3" fill="var(--capo)"/>`;
   }
 
   /* open / mute toggle at the nut */
