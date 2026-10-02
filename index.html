@@ -240,6 +240,14 @@ button{
 #board{display:block;touch-action:manipulation}
 #board text{user-select:none;-webkit-user-select:none}
 .hit{fill:transparent;cursor:pointer}
+/* the keyboard cursor. a ring, not a fill, so it never hides the dot under it.
+   navy rather than --accent: §3 keeps the UI blue off any face that carries
+   degree dots, and the active card's border is navy for the same reason. */
+.cur{fill:none;stroke:var(--tx-1);stroke-width:2;pointer-events:none}
+#boardBox:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#boardBox:focus{outline:none}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap;border:0}
 .hit:hover{fill:rgba(28,38,76,.05)}
 
 /* ---- results --------------------------------------------------------- */
@@ -455,7 +463,10 @@ input[type=range]::-moz-range-thumb{
     <div class="playfield">
     <section class="board-sec">
       <div class="legendSlot" id="slotLegendBoard"></div>
-      <div id="boardBox"><svg id="board"></svg></div>
+      <div id="boardBox" tabindex="0" role="application"
+           aria-label="指板。矢印キーで移動、Enter または Space で押さえる、0 で開放、X でミュート">
+        <svg id="board"></svg></div>
+      <p id="boardSay" class="sr" aria-live="polite"></p>
       <div id="tunePop" class="tunepop" role="dialog" aria-label="弦のチューニング" tabindex="-1" hidden>
         <div class="tp-main">
           <span class="tp-str" id="tpStr"></span>
@@ -871,6 +882,7 @@ const state = {
   rootBassOnly: false,
   sortBy: "diff",
   fingerMap: null,                    // string -> finger number, only after a card is applied
+  cur: null,                            // keyboard cursor on the neck: {s, f}
   tab: "board",                       // "board" | "find" — which panel is showing
 };
 // where the user was on each panel, so leaving and coming back is free
@@ -1098,6 +1110,15 @@ function renderBoard() {
       const hw = g.v ? g.colW / 2 : g.cellW / 2, hh = g.v ? g.cellH / 2 : g.rowH / 2;
       s += `<rect class="hit" data-s="${i}" data-f="${f}" x="${cx - hw}" y="${cy - hh}" width="${hw * 2}" height="${hh * 2}"/>`;
     }
+  }
+
+  /* the keyboard cursor. only while the board has focus, so the pointer user
+     never sees a second marker competing with their own dots. */
+  if (state.cur && document.activeElement === box) {
+    const c = state.cur;
+    const cx = g.v ? g.sx(c.s) : g.fx(c.f), cy = g.v ? g.fy(c.f) : g.sy(c.s);
+    const hw = (g.v ? g.colW : g.cellW) / 2 - 2, hh = (g.v ? g.cellH : g.rowH) / 2 - 2;
+    s += `<rect class="cur" x="${cx - hw}" y="${cy - hh}" width="${hw * 2}" height="${hh * 2}" rx="6"/>`;
   }
 
   s += `</svg>`;
@@ -1466,6 +1487,62 @@ function pluck(freq, when, gain, bus, dur) {
   src.connect(g).connect(bus.input);
   src.start(when); src.stop(when + dur);
 }
+/* ---------- the neck, from the keyboard ----------
+   §4 asks that everything be reachable by keyboard, and the nut controls were
+   wired for it — but the 96 cells of the fretboard, which are the whole point
+   of the tool, could only be reached with a pointer.
+
+   The arrows follow what is on screen rather than a fixed axis: on the wide
+   board frets run left-right, on the tall one they run up-down, and the keys
+   match in each. A cursor that moved "the other way" from the board you are
+   looking at is worse than no cursor. */
+function curCell() {
+  if (!state.cur) {
+    const lit = soundingList();
+    const s = lit.length ? lit[0].s : 5;
+    state.cur = { s, f: Math.max(state.fingering[s] ?? 0, state.capo + 1) };
+  }
+  return state.cur;
+}
+function sayCell(did) {
+  const c = curCell(), m = state.tuning[c.s] + c.f;
+  const held = state.fingering[c.s] === c.f;
+  $("boardSay").textContent =
+    `${6 - c.s}弦 ${c.f}フレット ${pcName(m)}` + (did ? (held ? " 押さえた" : " 外した") : held ? " 押さえている" : "");
+}
+function moveCur(ds, df) {
+  const c = curCell();
+  c.s = Math.min(5, Math.max(0, c.s + ds));
+  c.f = Math.min(NF, Math.max(state.capo + 1, c.f + df));
+  renderBoard(); sayCell(false);
+}
+function setCur(f) {                        // 0 = open, null = muted
+  const c = curCell();
+  state.fingering[c.s] = f === 0 ? state.capo : f;
+  state.fingerMap = null;
+  refresh(); sayCell(true);
+}
+function onBoardKey(e) {
+  const v = isVertical();
+  const map = {
+    ArrowUp:    v ? [0, -1] : [+1, 0],
+    ArrowDown:  v ? [0, +1] : [-1, 0],
+    ArrowLeft:  v ? [-1, 0] : [0, -1],
+    ArrowRight: v ? [+1, 0] : [0, +1]
+  };
+  if (map[e.key]) { e.preventDefault(); moveCur(...map[e.key]); return; }
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    const c = curCell();
+    setCur(state.fingering[c.s] === c.f ? null : c.f);
+    return;
+  }
+  if (e.key === "0") { e.preventDefault(); setCur(0); return; }
+  if (e.key === "x" || e.key === "X" || e.key === "Backspace" || e.key === "Delete") {
+    e.preventDefault(); setCur(null); return;
+  }
+}
+
 /* ---------- the strum, made visible ----------
    The chord sounds for over three seconds and, until now, nothing on screen
    moved. That is the one moment this tool is about — a guitarist strumming —
@@ -1820,6 +1897,16 @@ $("q").addEventListener("keydown", (e) => {
     if (sugSel >= 0 && items[sugSel]) { state.query = items[sugSel].dataset.n; e.target.value = state.query; }
     hideSug(); runSearch(); e.target.blur();
   } else if (e.key === "Escape") hideSug();
+});
+
+$("boardBox").addEventListener("keydown", onBoardKey);
+// the cursor belongs to the keyboard, so it appears and leaves with the focus
+$("boardBox").addEventListener("focus", () => { curCell(); renderBoard(); sayCell(false); });
+$("boardBox").addEventListener("blur", () => { renderBoard(); $("boardSay").textContent = ""; });
+// a pointer tap moves the cursor too, so switching hands does not lose the place
+$("boardBox").addEventListener("pointerdown", (e) => {
+  const hit = e.target.closest(".hit");
+  if (hit && hit.dataset.f !== "open") state.cur = { s: +hit.dataset.s, f: +hit.dataset.f };
 });
 
 $("qJump").addEventListener("click", () => scrollToEl($("findSec")));
