@@ -1018,8 +1018,8 @@ function renderBoard() {
   for (let i = 0; i < 6; i++) {
     const w = 1 + (5 - i) * 0.32;
     s += g.v
-      ? `<line x1="${g.sx(i)}" y1="${g.nutY}" x2="${g.sx(i)}" y2="${g.line(NF)}" stroke="var(--string)" stroke-width="${w}"/>`
-      : `<line x1="${g.nutX}" y1="${g.sy(i)}" x2="${g.line(NF)}" y2="${g.sy(i)}" stroke="var(--string)" stroke-width="${w}"/>`;
+      ? `<line data-str="${i}" x1="${g.sx(i)}" y1="${g.nutY}" x2="${g.sx(i)}" y2="${g.line(NF)}" stroke="var(--string)" stroke-width="${w}"/>`
+      : `<line data-str="${i}" x1="${g.nutX}" y1="${g.sy(i)}" x2="${g.line(NF)}" y2="${g.sy(i)}" stroke="var(--string)" stroke-width="${w}"/>`;
   }
 
   /* open-string note name — this IS the sounding pitch when the string is played
@@ -1074,7 +1074,7 @@ function renderBoard() {
     const cx = g.v ? g.sx(i) : g.fx(f), cy = g.v ? g.fy(f) : g.sy(i);
     const role = roleAt(state.tuning[i] + f, res);
     const col = role ? ROLE_COLOR[role] : "var(--c-none)";
-    s += `<circle cx="${cx}" cy="${cy}" r="12.5" fill="${col}"/>`;
+    s += `<circle data-dot="${i}" cx="${cx}" cy="${cy}" r="12.5" fill="${col}"/>`;
     const fg = state.fingerMap && state.fingerMap[i];
     if (state.showNames) {
       const nm = pcName(state.tuning[i] + f);
@@ -1466,6 +1466,85 @@ function pluck(freq, when, gain, bus, dur) {
   src.connect(g).connect(bus.input);
   src.start(when); src.stop(when + dur);
 }
+/* ---------- the strum, made visible ----------
+   The chord sounds for over three seconds and, until now, nothing on screen
+   moved. That is the one moment this tool is about — a guitarist strumming —
+   and it was silent visually.
+
+   This is not decoration: each string blurs into the lens shape a plucked
+   string actually makes, in ITS OWN degree colour, at the moment its note
+   starts. So the strum shows which strings sound, in what order, and what
+   each one contributes. The lens is drawn over the board and removed when it
+   is done; nothing is stored on the elements, so a re-render just takes it
+   away (§5).
+
+   prefers-reduced-motion gets the same information with no displacement:
+   the string thickens and fades instead of swinging. */
+const SVGNS = "http://www.w3.org/2000/svg";
+let ringRAF = 0;
+
+function clearRing() {
+  if (ringRAF) { cancelAnimationFrame(ringRAF); ringRAF = 0; }
+  document.getElementById("ring")?.remove();
+}
+
+function showStrum(notes, stepMs) {
+  const svg = document.getElementById("board");
+  if (!svg) return;
+  clearRing();
+  const g = geom(), res = currentResults()[0] || null;
+  const quiet = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const grp = document.createElementNS(SVGNS, "g");
+  grp.id = "ring";
+  grp.setAttribute("pointer-events", "none");          // never steal a tap
+  svg.appendChild(grp);
+
+  // a plucked string blurs into a spindle. half the lane keeps it clear of
+  // its neighbours; thinner than this and the strum is not visible at all.
+  const amp = (g.v ? g.colW : g.rowH) * 0.38;
+  const parts = notes.map((nt, i) => {
+    const f = state.fingering[nt.s];
+    const a = g.line(Math.max(f, state.capo)), b = g.line(NF);   // the part that is free to move
+    const mid = (a + b) / 2;
+    const role = roleAt(nt.midi, res);
+    const path = document.createElementNS(SVGNS, "path");
+    const col = role ? ROLE_COLOR[role] : "var(--c-none)";
+    path.setAttribute("fill", quiet ? "none" : col);
+    path.setAttribute("stroke", col);
+    path.setAttribute("stroke-width", quiet ? 3.4 : 1);
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("opacity", "0");
+    grp.appendChild(path);
+    return { path, a, b, mid, s: nt.s, at: i * stepMs };
+  });
+
+  const LIFE = 900, TAU = 260;
+  const t0 = performance.now();
+  (function frame(now) {
+    if (!grp.isConnected) { ringRAF = 0; return; }     // the board was redrawn
+    let live = false;
+    for (const q of parts) {
+      const t = now - t0 - q.at;
+      if (t < 0) { live = true; continue; }
+      if (t > LIFE) { q.path.setAttribute("opacity", "0"); continue; }
+      live = true;
+      const e = Math.exp(-t / TAU);
+      const A = quiet ? 0 : amp * e;
+      // one closed spindle: out along one side, back along the other
+      const x = g.v ? g.sx(q.s) : null, y = g.v ? null : g.sy(q.s);
+      const d = g.v
+        ? `M ${x} ${q.a} Q ${x - A} ${q.mid} ${x} ${q.b} Q ${x + A} ${q.mid} ${x} ${q.a} Z`
+        : `M ${q.a} ${y} Q ${q.mid} ${y - A} ${q.b} ${y} Q ${q.mid} ${y + A} ${q.a} ${y} Z`;
+      q.path.setAttribute("d", d);
+      q.path.setAttribute("opacity", (0.55 * e).toFixed(3));
+      const dot = svg.querySelector(`[data-dot="${q.s}"]`);
+      if (dot && !quiet) dot.setAttribute("r", (12.5 + 2.6 * e).toFixed(2));
+    }
+    if (live) ringRAF = requestAnimationFrame(frame);
+    else { ringRAF = 0; grp.remove(); svg.querySelectorAll("[data-dot]").forEach(d => d.setAttribute("r", "12.5")); }
+  })(t0);
+}
+
 function playChord() {
   const notes = soundingList();
   if (!notes.length) return;
@@ -1475,11 +1554,13 @@ function playChord() {
   const bus = ampBus(actx);
   bus.output.connect(actx.destination);
   const t0 = actx.currentTime + 0.03;
+  const step = state.strum ? 0.018 : 0;
   notes.forEach((n, i) => {
     const f = 440 * Math.pow(2, (n.midi - 69) / 12);
     // a pick crosses the strings faster than a thumb does
-    pluck(f, t0 + (state.strum ? i * 0.018 : 0), 0.16, bus, dur);
+    pluck(f, t0 + i * step, 0.16, bus, dur);
   });
+  showStrum(notes, step * 1000);          // the same order, on screen
 }
 
 /* ---------- wiring ---------- */
